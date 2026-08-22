@@ -165,15 +165,10 @@ private struct GeneralSettings: View {
             }
             #else
             Section(L10n.t("Sync", "同步")) {
-                Toggle(L10n.t("Sync clipboard via iCloud Drive", "通过 iCloud Drive 同步剪贴板"), isOn: Binding(
-                    get: { settings.iCloudSync },
-                    set: { _ in AppController.shared.toggleICloudSync() }))
-                Text(ClipboardStore.shared.iCloudAvailable
-                     ? L10n.t("Keeps your history and pinboards in sync across your Macs through iCloud Drive.",
-                              "通过 iCloud Drive 在你的多台 Mac 之间同步历史和 Pinboard。")
-                     : L10n.t("Sign in to iCloud and enable iCloud Drive to use sync.",
-                              "登录 iCloud 并开启 iCloud Drive 后才能使用同步。"))
-                    .font(.caption).foregroundStyle(.secondary)
+                Text(L10n.t("Multi-Mac sync is temporarily unavailable while storage moves to the new database. History stays on this Mac.",
+                            "多设备同步在存储迁移到新数据库期间暂不可用。历史数据只保存在本机。"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
             #endif
 

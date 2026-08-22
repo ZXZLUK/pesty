@@ -244,8 +244,25 @@ final class Settings {
         pasteDirectly = d.bool(forKey: Keys.pasteDirectly)
         playSound = d.bool(forKey: Keys.playSound)
         ignoreConcealed = d.bool(forKey: Keys.ignoreConcealed)
-        ignoredSourceAppBundleIDs = (d.stringArray(forKey: Keys.ignoredSourceAppBundleIDs) ?? [])
-            .filter { !$0.isEmpty }
+        // First run only (key never written): pre-exclude common password
+        // managers so secrets never land in history before the user opens
+        // Privacy settings. Users can remove entries freely afterwards.
+        if d.object(forKey: Keys.ignoredSourceAppBundleIDs) == nil {
+            let presets = [
+                "com.agilebits.onepassword-osx",   // 1Password 7/8
+                "com.1password.1password",         // 1Password (newer)
+                "com.bitwarden.desktop",           // Bitwarden
+                "com.dashlane.dashlanephoneagent", // Dashlane
+                "in.enpass.desktop",               // Enpass
+                "org.keepassxc.keepassxc",         // KeePassXC
+                "com.starkmarks.scarab",           // Strongbox
+            ].sorted()
+            ignoredSourceAppBundleIDs = presets
+            d.set(presets, forKey: Keys.ignoredSourceAppBundleIDs)
+        } else {
+            ignoredSourceAppBundleIDs = (d.stringArray(forKey: Keys.ignoredSourceAppBundleIDs) ?? [])
+                .filter { !$0.isEmpty }
+        }
         barHeight = d.double(forKey: Keys.barHeight)
         showMenuBarIcon = d.bool(forKey: Keys.showMenuBarIcon)
         onboarded = d.bool(forKey: Keys.onboarded)

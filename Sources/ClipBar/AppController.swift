@@ -45,6 +45,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
             name: NSApplication.didChangeScreenParametersNotification, object: nil)
 
         monitor.start()
+        store.applyRetentionPolicy()
 
         HotKeyCenter.shared.onTrigger = { [weak self] in self?.toggleBar() }
         HotKeyCenter.shared.start()
@@ -240,16 +241,16 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     func toggleICloudSync() {
-        let enabling = !Settings.shared.iCloudSync
-        if enabling && !ClipboardStore.shared.iCloudAvailable {
-            let alert = NSAlert()
-            alert.messageText = "iCloud Drive Unavailable"
-            alert.informativeText = "Sign in to iCloud and enable iCloud Drive in System Settings to sync your clipboard across your Macs."
-            alert.runModal()
-            return
-        }
-        Settings.shared.iCloudSync = enabling
-        ClipboardStore.shared.setICloudSync(enabling)
+        // Multi-Mac sync is parked until its semantics are redesigned
+        // (KNOWN_ISSUES KI-008/009: union merges resurrect deletions; the old
+        // whole-file watcher does not survive the SQLite migration). History
+        // stays on this Mac, which is also the privacy-safe default.
+        let alert = NSAlert()
+        alert.messageText = L10n.t("Sync unavailable", "同步暂不可用")
+        alert.informativeText = L10n.t(
+            "Multi-Mac sync is being rebuilt on the new database and is temporarily disabled. Your history stays on this Mac.",
+            "多设备同步正在基于新数据库重新设计中，暂时停用。你的历史数据只保存在本机。")
+        alert.runModal()
     }
 
     static func restart() {

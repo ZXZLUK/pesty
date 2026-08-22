@@ -1,5 +1,6 @@
 import AppKit
 import Observation
+import CryptoKit
 
 extension Notification.Name {
     static let clipbarStoreDidSave = Notification.Name("ClipBarStoreDidSave")
@@ -39,13 +40,19 @@ final class ClipboardStore {
         set { Settings.shared.historyLimit = newValue; trimHistory() }
     }
 
-    private var storeURL: URL
+    private var db: SQLiteStore?
+    private var legacyStoreURL: URL
     private var imagesDir: URL
     private var baseDir: URL
     private var saveWorkItem: DispatchWorkItem?
+    private var pendingBlobDeletes: [UUID] = []
 
-    private var fileWatch: DispatchSourceFileSystemObject?
-    private var ignoreWatchUntil: Date = .distantPast
+    /// Bumped on every content mutation so the search index cache can be
+    /// validated cheaply instead of re-derived per keystroke.
+    private var dataVersion = 0
+    private var searchIndex: [UUID: (version: Int, text: String)] = [:]
+
+    private let imageCache = NSCache<NSString, NSImage>()
 
     static var localBase: URL {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -67,13 +74,14 @@ final class ClipboardStore {
     var iCloudAvailable: Bool { ClipboardStore.iCloudBase != nil }
 
     private init() {
-        let base = (Settings.shared.iCloudSync ? ClipboardStore.iCloudBase : nil) ?? ClipboardStore.localBase
+        let base = ClipboardStore.localBase
         baseDir = base
         imagesDir = base.appendingPathComponent("images", isDirectory: true)
-        storeURL = base.appendingPathComponent("store.json")
+        legacyStoreURL = base.appendingPathComponent("store.json")
+        imageCache.countLimit = 200
         prepareDirectories()
+        db = SQLiteStore(directory: base)
         load()
-        if Settings.shared.iCloudSync { startWatching() }
     }
 
     private func prepareDirectories() {
@@ -93,7 +101,14 @@ final class ClipboardStore {
         }
         let q = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !q.isEmpty else { return base }
-        return base.filter { $0.searchableText.contains(q) }
+        return base.filter { cachedSearchableText(for: $0).contains(q) }
+    }
+
+    private func cachedSearchableText(for item: ClipItem) -> String {
+        if let hit = searchIndex[item.id], hit.version == dataVersion { return hit.text }
+        let text = item.searchableText
+        searchIndex[item.id] = (dataVersion, text)
+        return text
     }
 
     var selectedItem: ClipItem? {
@@ -130,13 +145,12 @@ final class ClipboardStore {
         case .itemCount:
             return max(0, history.count - max(20, limit))
         case .timeInterval:
+            // Time-based retention has no item-count ceiling: the user asked for
+            // unlimited history age-pruned on a cycle (e.g. weekly).
             let cutoff = Self.retentionCutoff(daysAgo: days)
-            let byAge = history.filter { $0.createdAt < cutoff }.count
-            return byAge + max(0, (history.count - byAge) - Self.timeRetentionSafetyCap)
+            return history.filter { $0.createdAt < cutoff }.count
         }
     }
-
-    private static let timeRetentionSafetyCap = 5000
 
     private static func retentionCutoff(daysAgo days: Int) -> Date {
         Date().addingTimeInterval(-TimeInterval(max(1, days)) * 86_400)
@@ -157,15 +171,13 @@ final class ClipboardStore {
                 history.removeLast(history.count - historyLimit)
             }
         case .timeInterval:
+            // No count ceiling: age-based retention only (user-facing promise
+            // is "unlimited history, pruned by age").
             let cutoff = Self.retentionCutoff(daysAgo: Settings.shared.historyRetentionDays)
             let old = history.filter { $0.createdAt < cutoff }
             if !old.isEmpty {
                 removed += old
                 history.removeAll { $0.createdAt < cutoff }
-            }
-            if history.count > Self.timeRetentionSafetyCap {
-                removed += Array(history[Self.timeRetentionSafetyCap...])
-                history.removeLast(history.count - Self.timeRetentionSafetyCap)
             }
         }
         guard !removed.isEmpty else { return }
@@ -274,7 +286,8 @@ final class ClipboardStore {
             sourceAppName: item.sourceAppName,
             customTitle: item.customTitle,
             createdAt: item.createdAt)
-        if let dup = duplicateImageFile(item) { copy.imageFileName = dup }
+        // Hash-named image files are shared with history (storeImageData
+        // deduplicates by content); no physical copy per pinboard entry.
         pinboards[i].items.insert(copy, at: 0)
         scheduleSave()
     }
@@ -470,13 +483,21 @@ final class ClipboardStore {
     }
 
     func loadImage(for item: ClipItem) -> NSImage? {
-        guard let url = imageURL(for: item) else { return nil }
-        return NSImage(contentsOf: url)
+        guard let name = item.imageFileName else { return nil }
+        if let cached = imageCache.object(forKey: name as NSString) { return cached }
+        guard let url = imageURL(for: item),
+              let image = NSImage(contentsOf: url) else { return nil }
+        imageCache.setObject(image, forKey: name as NSString)
+        return image
     }
 
+    /// Files are named by content SHA-256, so identical screenshots stored in
+    /// history and pinboards share one file instead of duplicating on disk.
     func storeImageData(_ data: Data) -> String? {
-        let name = "\(UUID().uuidString).png"
+        let digest = CryptoKit.SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+        let name = "\(digest).png"
         let url = imagesDir.appendingPathComponent(name)
+        guard !FileManager.default.fileExists(atPath: url.path) else { return name }
         do {
             try data.write(to: url, options: .atomic)
             try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
@@ -484,49 +505,61 @@ final class ClipboardStore {
         } catch { return nil }
     }
 
-    private func duplicateImageFile(_ item: ClipItem) -> String? {
-        guard let src = imageURL(for: item), FileManager.default.fileExists(atPath: src.path) else { return nil }
-        let name = "\(UUID().uuidString).png"
-        let dst = imagesDir.appendingPathComponent(name)
-        do {
-            try FileManager.default.copyItem(at: src, to: dst)
-            return name
-        } catch {
-            return nil
-        }
-    }
-
     private func deleteImageFile(_ item: ClipItem) {
+        // Large-payload blob files (oversized text/RTF) are released together
+        // with the clip's image assets when the clip leaves every container.
+        pendingBlobDeletes.append(item.id)
         guard let name = item.imageFileName else { return }
         let stillUsed = history.contains { $0.imageFileName == name }
             || pinboards.contains { $0.items.contains { $0.imageFileName == name } }
         if stillUsed { return }
+        imageCache.removeObject(forKey: name as NSString)
         if let url = imageURL(for: item) { try? FileManager.default.removeItem(at: url) }
     }
 
-    private struct Snapshot: Codable {
+    private struct LegacySnapshot: Codable {
         var history: [ClipItem]
         var pinboards: [Pinboard]
     }
 
     private func load() {
-        guard let data = try? Data(contentsOf: storeURL) else { return }
-        if let snap = try? JSONDecoder().decode(Snapshot.self, from: data) {
+        if let db {
+            let snap = db.load()
             history = snap.history
             pinboards = snap.pinboards
             selectFirst()
+            migrateLegacyJSONIfNeeded()
             return
         }
-        // KNOWN_ISSUES KI-006: a file that exists but cannot decode is quarantined
-        // beside the store instead of being silently replaced by the next save.
+        // Database could not be opened even after quarantine: fall back to the
+        // legacy JSON if present (read-only session; saves will keep failing loud).
+        guard let data = try? Data(contentsOf: legacyStoreURL),
+              let snap = try? JSONDecoder().decode(LegacySnapshot.self, from: data) else { return }
+        history = snap.history
+        pinboards = snap.pinboards
+        selectFirst()
+    }
+
+    /// One-time import of the pre-SQLite store.json, then the file is renamed
+    /// so it is never re-imported. Data always stays local.
+    private func migrateLegacyJSONIfNeeded() {
+        guard FileManager.default.fileExists(atPath: legacyStoreURL.path) else { return }
+        if history.isEmpty && pinboards.isEmpty,
+           let data = try? Data(contentsOf: legacyStoreURL),
+           let snap = try? JSONDecoder().decode(LegacySnapshot.self, from: data) {
+            history = snap.history
+            pinboards = snap.pinboards
+            selectFirst()
+            saveNow()
+        }
         let stamp = ISO8601DateFormatter().string(from: Date())
             .replacingOccurrences(of: ":", with: "-")
-        let quarantine = storeURL.appendingPathExtension("corrupt-\(stamp)")
-        try? FileManager.default.moveItem(at: storeURL, to: quarantine)
-        NSLog("ClipBar: store.json failed to decode; quarantined as \(quarantine.lastPathComponent)")
+        try? FileManager.default.moveItem(
+            at: legacyStoreURL, to: legacyStoreURL.appendingPathExtension("migrated-\(stamp)"))
     }
 
     private func scheduleSave() {
+        dataVersion &+= 1
         saveWorkItem?.cancel()
         let work = DispatchWorkItem { [weak self] in self?.saveNow() }
         saveWorkItem = work
@@ -534,17 +567,21 @@ final class ClipboardStore {
     }
 
     func saveNow() {
-        let snap = Snapshot(history: history, pinboards: pinboards)
-        guard let data = try? JSONEncoder().encode(snap) else { return }
-        ignoreWatchUntil = Date().addingTimeInterval(1.5)
-        do {
-            try data.write(to: storeURL, options: .atomic)
-        } catch {
-            // KNOWN_ISSUES KI-005: a failed write must not be reported as saved.
-            NSLog("ClipBar: store.json write failed: \(error.localizedDescription)")
+        guard let db else {
+            NSLog("ClipBar: no database handle; skipping save")
             return
         }
-        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: storeURL.path)
+        var containers: Set<String> = ["history"]
+        for board in pinboards { containers.insert(board.id.uuidString) }
+        let deletedBlobs = pendingBlobDeletes
+        guard db.flush(history: history, pinboards: pinboards,
+                       dirtyContainers: containers, deletedBlobIDs: deletedBlobs) else {
+            // KNOWN_ISSUES KI-005: a failed write must not be reported as saved.
+            // Dirty state is retained so the next save retries.
+            NSLog("ClipBar: database flush failed")
+            return
+        }
+        pendingBlobDeletes.removeAll(keepingCapacity: true)
         NotificationCenter.default.post(name: .clipbarStoreDidSave, object: nil)
     }
 
@@ -663,44 +700,6 @@ final class ClipboardStore {
         for old in replaced { deleteImageFile(old) }
     }
 
-    private func insertSortedByDate(_ item: ClipItem, into items: inout [ClipItem]) {
-        let idx = items.firstIndex(where: { $0.createdAt < item.createdAt }) ?? items.endIndex
-        items.insert(item, at: idx)
-    }
-
-    func setICloudSync(_ enabled: Bool) {
-        stopWatching()
-        let target = (enabled ? ClipboardStore.iCloudBase : ClipboardStore.localBase) ?? ClipboardStore.localBase
-        let newImages = target.appendingPathComponent("images", isDirectory: true)
-        let newStore = target.appendingPathComponent("store.json")
-        let fm = FileManager.default
-        try? fm.createDirectory(at: newImages, withIntermediateDirectories: true,
-                                attributes: [.posixPermissions: 0o700])
-
-        if fm.fileExists(atPath: newStore.path),
-           let data = try? Data(contentsOf: newStore),
-           let snap = try? JSONDecoder().decode(Snapshot.self, from: data) {
-            copyImages(from: imagesDir, to: newImages)
-            baseDir = target; imagesDir = newImages; storeURL = newStore
-            mergeExternal(snap)
-        } else {
-            copyImages(from: imagesDir, to: newImages)
-            baseDir = target; imagesDir = newImages; storeURL = newStore
-            saveNow()
-        }
-        prepareDirectories()
-        if enabled { startWatching() }
-    }
-
-    private func copyImages(from src: URL, to dst: URL) {
-        let fm = FileManager.default
-        guard let files = try? fm.contentsOfDirectory(at: src, includingPropertiesForKeys: nil) else { return }
-        for f in files where f.pathExtension == "png" {
-            let target = dst.appendingPathComponent(f.lastPathComponent)
-            if !fm.fileExists(atPath: target.path) { try? fm.copyItem(at: f, to: target) }
-        }
-    }
-
     private func contentKey(_ item: ClipItem) -> String {
         switch item.type {
         case .image: return "img:" + (item.imageHash ?? item.imageFileName ?? item.id.uuidString)
@@ -710,56 +709,9 @@ final class ClipboardStore {
         }
     }
 
-    private func mergeExternal(_ snap: Snapshot) {
-        let before = history.count
-        var combined = (history + snap.history).sorted { $0.createdAt > $1.createdAt }
-        var seen = Set<String>()
-        var merged: [ClipItem] = []
-        for it in combined where seen.insert(contentKey(it)).inserted { merged.append(it) }
-        history = merged
-        trimHistory()
-
-        var byID: [UUID: Pinboard] = Dictionary(uniqueKeysWithValues: pinboards.map { ($0.id, $0) })
-        for b in snap.pinboards {
-            if var existing = byID[b.id] {
-                for it in b.items where !existing.items.contains(where: { $0.sameContent(as: it) }) {
-                    existing.items.append(it)
-                }
-                byID[b.id] = existing
-            } else {
-                byID[b.id] = b
-            }
-        }
-        pinboards = pinboards.map { byID[$0.id] ?? $0 }
-            + byID.values.filter { b in !pinboards.contains(where: { $0.id == b.id }) }
-
-        combined.removeAll()
-        selectFirst()
-        if history.count != before || !snap.history.isEmpty { saveNow() }
+    private func insertSortedByDate(_ item: ClipItem, into items: inout [ClipItem]) {
+        let idx = items.firstIndex(where: { $0.createdAt < item.createdAt }) ?? items.endIndex
+        items.insert(item, at: idx)
     }
 
-    private func startWatching() {
-        stopWatching()
-        let fd = open(storeURL.path, O_EVTONLY)
-        guard fd >= 0 else { return }
-        let src = DispatchSource.makeFileSystemObjectSource(
-            fileDescriptor: fd, eventMask: [.write, .rename, .delete], queue: .main)
-        src.setEventHandler { [weak self] in
-            guard let self else { return }
-            if Date() < self.ignoreWatchUntil { return }
-            if let data = try? Data(contentsOf: self.storeURL),
-               let snap = try? JSONDecoder().decode(Snapshot.self, from: data) {
-                self.mergeExternal(snap)
-            }
-            self.startWatching()
-        }
-        src.setCancelHandler { close(fd) }
-        src.resume()
-        fileWatch = src
-    }
-
-    private func stopWatching() {
-        fileWatch?.cancel()
-        fileWatch = nil
-    }
 }

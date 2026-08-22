@@ -62,7 +62,6 @@ enum PasteService {
                       asPlainText: Bool = false) {
         guard let change = copy(item, asPlainText: asPlainText) else { return }
         monitor.suppressUntilChangeCount = change
-        if Settings.shared.playSound { NSSound(named: "Pop")?.play() }
 
         guard let target = targetApp, !target.isTerminated else { return }
 
@@ -76,19 +75,34 @@ enum PasteService {
         // synthesizing ⌘V. This requires the user's Accessibility grant.
         guard Settings.shared.pasteDirectly && AXIsProcessTrusted() else { return }
         target.activate()
-        waitForFrontmost(target, attempts: 20)
+        // KNOWN_ISSUES KI-010: waiting for the target to become frontmost can
+        // fail (slow launch, focus refusal). The user must hear the difference
+        // between "pasted" and "clipboard armed but nothing injected" — a beep
+        // on timeout instead of silence.
+        waitForFrontmost(target, attempts: 20) { frontmost in
+            if frontmost {
+                if Settings.shared.playSound { NSSound(named: "Pop")?.play() }
+            } else {
+                NSSound.beep()
+                NSLog("ClipBar: paste target never became frontmost; clip copied but not injected")
+            }
+        }
         #endif
     }
 
     #if !MAS
-    private static func waitForFrontmost(_ app: NSRunningApplication, attempts: Int) {
-        guard attempts > 0, !app.isTerminated else { return }
+    private static func waitForFrontmost(_ app: NSRunningApplication, attempts: Int,
+                                         completion: @escaping (Bool) -> Void) {
+        guard attempts > 0, !app.isTerminated else { completion(false); return }
         if NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) { sendCommandV() }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
+                sendCommandV()
+                completion(true)
+            }
             return
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
-            waitForFrontmost(app, attempts: attempts - 1)
+            waitForFrontmost(app, attempts: attempts - 1, completion: completion)
         }
     }
 
