@@ -2,11 +2,25 @@ import AppKit
 import SwiftUI
 import Carbon.HIToolbox
 
-/// Preview window that closes on Escape (plain NSWindow ignores it).
+/// Preview window keyboard behavior: Escape closes; Space toggles the
+/// preview off; bare arrow keys walk the selection and refresh the preview.
 final class PreviewWindow: NSWindow {
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
-        if event.keyCode == kVK_Escape { performClose(self); return true }
-        return super.performKeyEquivalent(with: event)
+        let flags = event.modifierFlags
+        let bare = !flags.contains(.command) && !flags.contains(.option)
+            && !flags.contains(.control)
+        switch Int(event.keyCode) {
+        case kVK_Escape:
+            performClose(self); return true
+        case kVK_Space where bare:
+            performClose(self); return true
+        case kVK_LeftArrow, kVK_UpArrow where bare:
+            AppController.shared.previewMoveSelection(by: -1); return true
+        case kVK_RightArrow, kVK_DownArrow where bare:
+            AppController.shared.previewMoveSelection(by: 1); return true
+        default:
+            return super.performKeyEquivalent(with: event)
+        }
     }
 }
 
@@ -396,6 +410,14 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         guard changed, let updated = store.item(withID: item.id) else { return }
         if previewedItemID == item.id { showPreview(for: updated) }
+    }
+
+    /// Arrow keys inside an open preview walk the bar selection and refresh
+    /// the previewed card in place.
+    func previewMoveSelection(by delta: Int) {
+        guard previewWindow != nil else { return }
+        store.moveSelection(by: delta)
+        if let item = store.selectedItem { showPreview(for: item) }
     }
 
     func showPreview(for item: ClipItem) {
