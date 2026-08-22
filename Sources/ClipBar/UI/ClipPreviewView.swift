@@ -23,6 +23,20 @@ struct ClipPreviewView: View {
                 Spacer()
             }
 
+            HStack(spacing: 8) {
+                Image(nsImage: AppIconProvider.icon(forBundleID: item.sourceBundleID))
+                    .resizable().interpolation(.high)
+                    .frame(width: 16, height: 16)
+                Text(item.sourceAppName ?? item.sourceBundleID ?? L10n.t("Unknown", "未知来源"))
+                    .font(.caption).foregroundStyle(.secondary)
+                Text("·").foregroundStyle(.tertiary)
+                Text(item.createdAt.clipRelativeLong).font(.caption).foregroundStyle(.secondary)
+                Text("·").foregroundStyle(.tertiary)
+                Text(metaSize).font(.caption).foregroundStyle(.secondary)
+                Spacer()
+            }
+            .padding(.horizontal, 1)
+
             Divider()
 
             ScrollView {
@@ -77,6 +91,20 @@ struct ClipPreviewView: View {
             } else {
                 unavailable("This clip has no text to preview.")
             }
+        }
+    }
+
+    private var metaSize: String {
+        switch item.type {
+        case .image:
+            if let url = store.imageURL(for: item),
+               let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize {
+                return ByteCountFormatter.string(fromByteCount: Int64(size), countStyle: .file)
+            }
+            return L10n.t("Image", "图片")
+        default:
+            let count = item.text?.utf8.count ?? 0
+            return ByteCountFormatter.string(fromByteCount: Int64(count), countStyle: .file)
         }
     }
 

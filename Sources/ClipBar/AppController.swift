@@ -370,12 +370,14 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func pasteItem(_ item: ClipItem, asPlainText: Bool = false) {
         let target = pasteTarget
         hideBar()
+        store.promoteToHead(item)
         PasteService.paste(item, into: target, monitor: monitor, asPlainText: asPlainText)
     }
 
     func copyItem(_ item: ClipItem) {
         if let change = PasteService.copy(item) {
             monitor.suppressUntilChangeCount = change
+            store.promoteToHead(item)
         }
         hideBar()
     }
@@ -583,6 +585,9 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
 
         switch code {
+        case kVK_ANSI_Z where cmd && !ctrl && !opt:
+            if store.undoDelete() { return nil }
+            break
         case kVK_Space:
             // Finder-style Quick Look: with no active query, Space previews the
             // selected clip instead of starting a search with a blank. While a

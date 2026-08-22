@@ -2,6 +2,17 @@ import SwiftUI
 import AppKit
 
 struct SettingsView: View {
+    /// 简体中文相对时间（“x 分钟前”），避免依赖系统 locale。
+    static func zhRelative(_ date: Date) -> String {
+        let secs = -date.timeIntervalSinceNow
+        switch secs {
+        case ..<60: return "刚刚"
+        case ..<3600: return "\(Int(secs / 60)) 分钟前"
+        case ..<86_400: return "\(Int(secs / 3600)) 小时前"
+        default: return "\(Int(secs / 86_400)) 天前"
+        }
+    }
+
     var body: some View {
         TabView {
             GeneralSettings()
@@ -211,6 +222,23 @@ private struct GeneralSettings: View {
             #endif
 
             Section(L10n.t("Data", "数据")) {
+                let last = ClipboardStore.shared.lastBackupDate
+                HStack {
+                    Image(systemName: "externaldrive.badge.checkmark")
+                        .foregroundStyle(last == nil ? Color.secondary : Color.green)
+                    Text(last.map {
+                        L10n.t("Last backup: \(RelativeDateTimeFormatter().localizedString(for: $0, relativeTo: Date()))",
+                               "最近备份：\(SettingsView.zhRelative($0))")
+                    } ?? L10n.t("No backup yet", "还没有备份"))
+                        .font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    Button(L10n.t("Back Up Now", "立即备份")) {
+                        ClipboardStore.shared.runBackupNow()
+                    }
+                    Button(L10n.t("Open Folder", "打开文件夹")) {
+                        NSWorkspace.shared.open(ClipboardStore.shared.backupsDirectory)
+                    }
+                }
                 Button(L10n.t("Clear Clipboard History", "清空剪贴板历史"), role: .destructive) {
                     ClipboardStore.shared.clearHistory()
                 }

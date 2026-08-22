@@ -39,6 +39,15 @@ struct BarView: View {
             if settings.iCloudSync { syncButton }
             #endif
             typeFilterMenu
+            if let hint = store.deletionHint {
+                Text(hint)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Theme.chromeTextSecondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Theme.pillBG, in: Capsule())
+                    .help(L10n.t("Press ⌘Z to undo", "按 ⌘Z 撤销"))
+            }
             searchIndicator
             PinboardTabs()
                 .layoutPriority(1)

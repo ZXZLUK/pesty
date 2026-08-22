@@ -47,6 +47,13 @@ final class ClipboardStore {
     private var saveWorkItem: DispatchWorkItem?
     private var pendingBlobDeletes: [UUID] = []
 
+    /// Short-lived record of the last deletion so ⌘Z can bring it back.
+    /// Only user deletions from the bar land here (not retention pruning).
+    private var lastDeletion: [(container: String, item: ClipItem, index: Int)]?
+    private var deletionExpiredAt = Date.distantPast
+    private var deletionExpiryWork: DispatchWorkItem?
+    private(set) var deletionHint: String?
+
     /// Bumped on every content mutation so the search index cache can be
     /// validated cheaply instead of re-derived per keystroke.
     private var dataVersion = 0
@@ -101,6 +108,45 @@ final class ClipboardStore {
         backupTimer = t
     }
 
+    /// Settings-facing backup surface.
+    @discardableResult
+    func runBackupNow() -> Bool {
+        guard let db else { return false }
+        let dir = baseDir.appendingPathComponent("backups", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true,
+                                                 attributes: [.posixPermissions: 0o700])
+        let stamp = ISO8601DateFormatter().string(from: Date()).prefix(10)
+        let target = dir.appendingPathComponent("history-\(stamp).db")
+        // 同日重跑：先移除旧快照再生成，保持一天一份、内容最新。
+        try? FileManager.default.removeItem(at: target)
+        guard db.backup(to: target) else { return false }
+        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: target.path)
+        pruneBackups(dir: dir)
+        return true
+    }
+
+    var lastBackupDate: Date? {
+        let dir = baseDir.appendingPathComponent("backups", isDirectory: true)
+        guard let files = try? FileManager.default.contentsOfDirectory(
+            at: dir, includingPropertiesForKeys: [.contentModificationDateKey]) else { return nil }
+        return files.compactMap {
+            try? $0.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
+        }.max()
+    }
+
+    var backupsDirectory: URL {
+        baseDir.appendingPathComponent("backups", isDirectory: true)
+    }
+
+    private func pruneBackups(dir: URL) {
+        if let files = try? FileManager.default.contentsOfDirectory(atPath: dir.path).sorted(),
+           files.count > 7 {
+            for name in files.prefix(files.count - 7) {
+                try? FileManager.default.removeItem(at: dir.appendingPathComponent(name))
+            }
+        }
+    }
+
     /// Startup housekeeping: drop blob files orphaned by crashes, and cap the
     /// quarantine/migration files so they cannot accumulate forever.
     private func performStorageHygiene() {
@@ -133,12 +179,7 @@ final class ClipboardStore {
             NSLog("ClipBar: daily backup failed"); return
         }
         try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: target.path)
-        if let files = try? FileManager.default.contentsOfDirectory(atPath: dir.path).sorted(),
-           files.count > 7 {
-            for name in files.dropLast(7) {
-                try? FileManager.default.removeItem(at: dir.appendingPathComponent(name))
-            }
-        }
+        pruneBackups(dir: dir)
     }
 
     private func prepareDirectories() {
@@ -267,6 +308,7 @@ final class ClipboardStore {
     func delete(items: [ClipItem]) {
         let ids = Set(items.map(\.id))
         guard !ids.isEmpty else { return }
+        recordForUndo(ids: ids)
         // Captured before removal so repeated deletes walk down the list
         // instead of snapping back to the newest clip every time.
         let deletedIndex = visibleItems.firstIndex(where: { ids.contains($0.id) })
@@ -295,6 +337,56 @@ final class ClipboardStore {
         }
         reconcileMultiSelection()
         scheduleSave()
+    }
+
+    /// Remembers positions so `undoDelete()` can restore them verbatim.
+    /// Note: an image clip's PNG may already be gone by undo time; the paste
+    /// path fails gracefully in that case (KI-004 transaction).
+    private func recordForUndo(ids: Set<UUID>) {
+        var recs: [(String, ClipItem, Int)] = []
+        if case .history = source {
+            for (i, item) in history.enumerated() where ids.contains(item.id) {
+                recs.append(("history", item, i))
+            }
+        } else if case .pinboard(let boardID) = source {
+            if let board = pinboards.first(where: { $0.id == boardID }) {
+                for (i, item) in board.items.enumerated() where ids.contains(item.id) {
+                    recs.append((boardID.uuidString, item, i))
+                }
+            }
+        }
+        guard !recs.isEmpty else { return }
+        lastDeletion = recs
+        deletionExpiredAt = Date().addingTimeInterval(10)
+        deletionHint = L10n.t("Deleted \(recs.count) · ⌘Z to undo", "已删除 \(recs.count) 条 · ⌘Z 撤销")
+        deletionExpiryWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            self?.lastDeletion = nil
+            self?.deletionHint = nil
+        }
+        deletionExpiryWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 10, execute: work)
+    }
+
+    @discardableResult
+    func undoDelete() -> Bool {
+        guard let recs = lastDeletion, Date() < deletionExpiredAt else { return false }
+        lastDeletion = nil
+        deletionHint = nil
+        deletionExpiryWork?.cancel()
+        // 从后往前按原索引插回，保证前面的索引不被自己的插入顶偏。
+        for rec in recs.reversed() {
+            if rec.container == "history" {
+                history.insert(rec.item, at: min(rec.index, history.count))
+            } else if let id = UUID(uuidString: rec.container),
+                      let board = pinboards.firstIndex(where: { $0.id == id }) {
+                pinboards[board].items.insert(rec.item, at: min(rec.index, pinboards[board].items.count))
+            }
+        }
+        retentionPrunedRecordNames.subtract(recs.map { $0.item.id.uuidString })
+        if selectedItem == nil { selectFirst() }
+        scheduleSave()
+        return true
     }
 
     func clearHistory() {
@@ -349,6 +441,16 @@ final class ClipboardStore {
         // Hash-named image files are shared with history (storeImageData
         // deduplicates by content); no physical copy per pinboard entry.
         pinboards[i].items.insert(copy, at: 0)
+        scheduleSave()
+    }
+
+    /// MRU: using a clip (paste or copy) moves it to the head of history with
+    /// a fresh timestamp, so the next ⌘⇧V starts where your hand just was.
+    func promoteToHead(_ item: ClipItem) {
+        guard let idx = history.firstIndex(where: { $0.id == item.id }), idx != 0 else { return }
+        var promoted = history.remove(at: idx)
+        promoted.createdAt = Date()
+        history.insert(promoted, at: 0)
         scheduleSave()
     }
 
