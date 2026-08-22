@@ -57,7 +57,7 @@ final class ClipboardStore {
     /// Bumped on every content mutation so the search index cache can be
     /// validated cheaply instead of re-derived per keystroke.
     private var dataVersion = 0
-    private var searchIndex: [UUID: (version: Int, text: String)] = [:]
+    private var searchIndex: [UUID: (version: Int, text: String, pinyin: String)] = [:]
 
     private let imageCache = NSCache<NSString, NSImage>()
 
@@ -202,14 +202,22 @@ final class ClipboardStore {
         else { filtered = base }
         let q = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !q.isEmpty else { return filtered }
-        return filtered.filter { cachedSearchableText(for: $0).contains(q) }
+        let pinyinQuery = Pinyin.isPinyinQuery(q)
+        return filtered.filter { item in
+            let idx = cachedIndex(for: item)
+            if idx.text.contains(q) { return true }
+            return pinyinQuery && idx.pinyin.contains(q)
+        }
     }
 
-    private func cachedSearchableText(for item: ClipItem) -> String {
-        if let hit = searchIndex[item.id], hit.version == dataVersion { return hit.text }
+    private func cachedIndex(for item: ClipItem) -> (text: String, pinyin: String) {
+        if let hit = searchIndex[item.id], hit.version == dataVersion {
+            return (hit.text, hit.pinyin)
+        }
         let text = item.searchableText
-        searchIndex[item.id] = (dataVersion, text)
-        return text
+        let pinyin = Pinyin.index(for: text)
+        searchIndex[item.id] = (dataVersion, text, pinyin)
+        return (text, pinyin)
     }
 
     var selectedItem: ClipItem? {

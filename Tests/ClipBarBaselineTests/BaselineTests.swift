@@ -193,3 +193,51 @@ import Carbon.HIToolbox
         #expect(HotKeyCenter.keyName(for: kVK_ANSI_Keypad1) == "?")
     }
 }
+
+// MARK: - 拼音索引
+
+@Suite struct PinyinIndexTests {
+
+    @Test func syllablesAndInitialsForCoreWords() {
+        let syl = Pinyin.syllables("粘贴板")
+        #expect(syl.contains("zhan"))
+        #expect(syl.contains("tie"))
+        #expect(syl.contains("ban"))
+        #expect(Pinyin.initials("粘贴板") == "ztb")
+    }
+
+    @Test func mixedTextPassesLatinThrough() {
+        let syl = Pinyin.syllables("ClipBar 粘贴板 hello")
+        #expect(syl.contains("clipbar"))
+        #expect(syl.contains("hello"))
+        #expect(syl.contains("zhan"))
+        let ini = Pinyin.initials("ClipBar 粘贴板 hello")
+        #expect(ini.contains("ztb"))
+    }
+
+    @Test func punctuationDoesNotBecomeInitial() {
+        // 独立标点 token 不应进入声母串。
+        #expect(Pinyin.initials("你好，世界！") == "nhsj")
+    }
+
+    @Test func polyphoneContextAwareness() {
+        // 系统转换按上下文取音：重庆=chong、重启=zhong。
+        #expect(Pinyin.syllables("重庆之行").contains("chong"))
+        #expect(Pinyin.syllables("重启电脑").contains("zhong"))
+    }
+
+    @Test func pinyinQueryDetection() {
+        #expect(Pinyin.isPinyinQuery("ztb"))
+        #expect(Pinyin.isPinyinQuery("zhan"))
+        #expect(!Pinyin.isPinyinQuery("粘贴"))
+        #expect(!Pinyin.isPinyinQuery("a b"))
+        #expect(!Pinyin.isPinyinQuery("py1"))
+        #expect(!Pinyin.isPinyinQuery(""))
+    }
+
+    @Test func indexJoinsSyllablesAndInitials() {
+        let idx = Pinyin.index(for: "粘贴板")
+        #expect(idx.contains("zhan tie ban"))
+        #expect(idx.contains("ztb"))
+    }
+}
