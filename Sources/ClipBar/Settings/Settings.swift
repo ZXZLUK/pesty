@@ -95,6 +95,7 @@ final class Settings {
         static let hideOnClickOutside = "hideOnClickOutside"
         static let pasteDirectly = "pasteDirectly"
         static let playSound = "playSound"
+        static let captureSound = "captureSound"
         static let ignoreConcealed = "ignoreConcealed"
         static let ignoredSourceAppBundleIDs = "ignoredSourceAppBundleIDs"
         static let barHeight = "barHeight"
@@ -170,6 +171,12 @@ final class Settings {
         didSet { guard isLoaded else { return }; d.set(playSound, forKey: Keys.playSound) }
     }
 
+    /// System sound name played (quietly) when a new clip is captured;
+    /// empty string disables capture feedback.
+    var captureSound: String {
+        didSet { guard isLoaded else { return }; d.set(captureSound, forKey: Keys.captureSound) }
+    }
+
     var ignoreConcealed: Bool {
         didSet { guard isLoaded else { return }; d.set(ignoreConcealed, forKey: Keys.ignoreConcealed) }
     }
@@ -223,6 +230,7 @@ final class Settings {
             Keys.hideOnClickOutside: true,
             Keys.pasteDirectly: true,
             Keys.playSound: false,
+            Keys.captureSound: "Tink",
             Keys.ignoreConcealed: true,
             Keys.ignoredSourceAppBundleIDs: [],
             Keys.barHeight: 430.0,
@@ -243,6 +251,7 @@ final class Settings {
         hideOnClickOutside = d.bool(forKey: Keys.hideOnClickOutside)
         pasteDirectly = d.bool(forKey: Keys.pasteDirectly)
         playSound = d.bool(forKey: Keys.playSound)
+        captureSound = d.string(forKey: Keys.captureSound) ?? "Tink"
         ignoreConcealed = d.bool(forKey: Keys.ignoreConcealed)
         // First run only (key never written): pre-exclude common password
         // managers so secrets never land in history before the user opens

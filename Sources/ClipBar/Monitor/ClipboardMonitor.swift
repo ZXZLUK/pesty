@@ -36,6 +36,7 @@ final class ClipboardMonitor {
         if current == suppressUntilChangeCount { return }
         guard let item = makeItem() else { return }
         ClipboardStore.shared.addCaptured(item)
+        SoundEffects.playCapture()
     }
 
     private func makeItem() -> ClipItem? {

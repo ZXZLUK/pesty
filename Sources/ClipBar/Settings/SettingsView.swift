@@ -138,6 +138,14 @@ private struct GeneralSettings: View {
                 #endif
                 Toggle(L10n.t("Ignore passwords (concealed clips)", "忽略密码（隐藏类型的复制）"), isOn: $settings.ignoreConcealed)
                 Toggle(L10n.t("Play sound on paste", "粘贴时播放音效"), isOn: $settings.playSound)
+                Picker(L10n.t("Sound when copying", "复制捕获时提示音"), selection: $settings.captureSound) {
+                    ForEach(SoundEffects.captureChoices, id: \.name) { choice in
+                        Text(L10n.t(choice.labelEN, choice.labelZH)).tag(choice.name)
+                    }
+                }
+                .onChange(of: settings.captureSound) { _, newValue in
+                    SoundEffects.preview(newValue)
+                }
                 Toggle(L10n.t("Hide ClipBar when clicking outside", "点击外部时收起 ClipBar"), isOn: $settings.hideOnClickOutside)
                 Toggle(L10n.t("Launch at login", "登录时自动启动"), isOn: $settings.launchAtLogin)
                 Toggle(L10n.t("Show ClipBar in the menu bar", "在菜单栏显示 ClipBar 图标"), isOn: $settings.showMenuBarIcon)
