@@ -124,27 +124,27 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         let appItem = NSMenuItem()
         let appMenu = NSMenu()
-        appMenu.addItem(withTitle: "About ClipBar", action: #selector(menuAbout), keyEquivalent: "").target = self
+        appMenu.addItem(withTitle: L10n.t("About ClipBar", "关于 ClipBar"), action: #selector(menuAbout), keyEquivalent: "").target = self
         appMenu.addItem(.separator())
-        appMenu.addItem(withTitle: "Settings…", action: #selector(menuSettings), keyEquivalent: ",").target = self
+        appMenu.addItem(withTitle: L10n.t("Settings…", "设置…"), action: #selector(menuSettings), keyEquivalent: ",").target = self
         appMenu.addItem(.separator())
-        appMenu.addItem(withTitle: "Hide ClipBar", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
-        appMenu.addItem(withTitle: "Quit ClipBar", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appMenu.addItem(withTitle: L10n.t("Hide ClipBar", "隐藏 ClipBar"), action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        appMenu.addItem(withTitle: L10n.t("Quit ClipBar", "退出 ClipBar"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         appItem.submenu = appMenu
         main.addItem(appItem)
 
         let editItem = NSMenuItem()
         let editMenu = NSMenu(title: "Edit")
-        editMenu.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
-        let redo = editMenu.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "z")
+        editMenu.addItem(withTitle: L10n.t("Undo", "撤销"), action: Selector(("undo:")), keyEquivalent: "z")
+        let redo = editMenu.addItem(withTitle: L10n.t("Redo", "重做"), action: Selector(("redo:")), keyEquivalent: "z")
         redo.keyEquivalentModifierMask = [.command, .shift]
         editMenu.addItem(.separator())
-        editMenu.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
-        editMenu.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
-        editMenu.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
-        editMenu.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        editMenu.addItem(withTitle: L10n.t("Cut", "剪切"), action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        editMenu.addItem(withTitle: L10n.t("Copy", "拷贝"), action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        editMenu.addItem(withTitle: L10n.t("Paste", "粘贴"), action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        editMenu.addItem(withTitle: L10n.t("Select All", "全选"), action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
         editMenu.addItem(.separator())
-        let find = editMenu.addItem(withTitle: "Find…",
+        let find = editMenu.addItem(withTitle: L10n.t("Find…", "查找…"),
                                     action: #selector(NSTextView.performTextFinderAction(_:)),
                                     keyEquivalent: "f")
         find.tag = NSTextFinder.Action.showFindInterface.rawValue
@@ -153,8 +153,8 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         let windowItem = NSMenuItem()
         let windowMenu = NSMenu(title: "Window")
-        windowMenu.addItem(withTitle: "Close Window", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
-        windowMenu.addItem(withTitle: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
+        windowMenu.addItem(withTitle: L10n.t("Close Window", "关闭窗口"), action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        windowMenu.addItem(withTitle: L10n.t("Minimize", "最小化"), action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
         windowItem.submenu = windowMenu
         main.addItem(windowItem)
         NSApp.windowsMenu = windowMenu
@@ -167,18 +167,18 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         updateStatusItemIcon(item)
         let menu = NSMenu()
-        menu.addItem(withTitle: "Open ClipBar   \(Settings.shared.hotkeyDisplay)",
+        menu.addItem(withTitle: L10n.t("Open ClipBar   \(Settings.shared.hotkeyDisplay)", "打开 ClipBar   \(Settings.shared.hotkeyDisplay)"),
                      action: #selector(menuOpen), keyEquivalent: "").target = self
         menu.addItem(.separator())
-        menu.addItem(withTitle: "Settings…", action: #selector(menuSettings), keyEquivalent: ",").target = self
-        let pause = menu.addItem(withTitle: "Pause ClipBar", action: #selector(menuTogglePause), keyEquivalent: "")
+        menu.addItem(withTitle: L10n.t("Settings…", "设置…"), action: #selector(menuSettings), keyEquivalent: ",").target = self
+        let pause = menu.addItem(withTitle: L10n.t("Pause ClipBar", "暂停 ClipBar"), action: #selector(menuTogglePause), keyEquivalent: "")
         pause.target = self
         pauseMenuItem = pause
-        menu.addItem(withTitle: "Clear History", action: #selector(menuClear), keyEquivalent: "").target = self
+        menu.addItem(withTitle: L10n.t("Clear History", "清空历史"), action: #selector(menuClear), keyEquivalent: "").target = self
         menu.addItem(.separator())
-        let about = menu.addItem(withTitle: "About ClipBar", action: #selector(menuAbout), keyEquivalent: "")
+        let about = menu.addItem(withTitle: L10n.t("About ClipBar", "关于 ClipBar"), action: #selector(menuAbout), keyEquivalent: "")
         about.target = self
-        menu.addItem(withTitle: "Quit ClipBar", action: #selector(menuQuit), keyEquivalent: "q").target = self
+        menu.addItem(withTitle: L10n.t("Quit ClipBar", "退出 ClipBar"), action: #selector(menuQuit), keyEquivalent: "q").target = self
         item.menu = menu
         statusItem = item
     }
@@ -201,7 +201,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func toggleClipBarPause() {
         monitor.togglePause()
-        pauseMenuItem?.title = monitor.isPaused ? "Resume ClipBar" : "Pause ClipBar"
+        pauseMenuItem?.title = monitor.isPaused ? L10n.t("Resume ClipBar", "恢复 ClipBar") : L10n.t("Pause ClipBar", "暂停 ClipBar")
         if let item = statusItem { updateStatusItemIcon(item) }
     }
 
@@ -349,7 +349,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var pasteMenuTitle: String {
         guard let name = pasteTarget?.localizedName,
               !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return "Paste"
+            return L10n.t("Paste", "粘贴")
         }
         return "Paste to \(name)"
     }
@@ -433,15 +433,15 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
         suppressAutoHide = true
         defer { suppressAutoHide = false }
         let alert = NSAlert()
-        alert.messageText = "Delete \(targets.count) Clips?"
+        alert.messageText = L10n.t("Delete \(targets.count) Clips?", "删除 \(targets.count) 条？")
         #if MAS
-        alert.informativeText = "There is no undo. When iCloud sync is on, these clips are also removed from your other devices."
+        alert.informativeText = L10n.t("There is no undo. When iCloud sync is on, these clips are also removed from your other devices.", "此操作无法撤销。开启 iCloud 同步时，其他设备上的这些内容也会被移除。")
         #else
-        alert.informativeText = "There is no undo."
+        alert.informativeText = L10n.t("There is no undo.", "此操作无法撤销。")
         #endif
-        let confirm = alert.addButton(withTitle: "Delete \(targets.count) Clips")
+        let confirm = alert.addButton(withTitle: L10n.t("Delete \(targets.count) Clips", "删除 \(targets.count) 条"))
         confirm.hasDestructiveAction = true
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: L10n.t("Cancel", "取消"))
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         store.delete(items: targets)
     }
@@ -463,7 +463,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let view = SettingsView()
         let host = NSHostingController(rootView: view)
         let win = NSWindow(contentViewController: host)
-        win.title = "ClipBar Settings"
+        win.title = L10n.t("ClipBar Settings", "ClipBar 设置")
         win.styleMask = [.titled, .closable, .miniaturizable]
         win.setContentSize(NSSize(width: 520, height: 560))
         win.center()

@@ -23,9 +23,9 @@ enum ClipEditor {
 
     private static func editColor(_ item: ClipItem) -> Edit? {
         let alert = NSAlert()
-        alert.messageText = "Edit Color"
-        alert.informativeText = "Choose the color stored in this clip."
-        alert.addButton(withTitle: "Save")
+        alert.messageText = L10n.t("Edit Color", "编辑颜色")
+        alert.informativeText = L10n.t("Choose the color stored in this clip.", "选择这张卡片保存的颜色。")
+        alert.addButton(withTitle: L10n.t("Save", "保存"))
         alert.addButton(withTitle: "Cancel")
 
         let color = item.colorHex.flatMap(NSColor.init(hex:)) ?? .black
@@ -38,9 +38,9 @@ enum ClipEditor {
 
     private static func showUnsupportedEditor(for item: ClipItem) {
         let alert = NSAlert()
-        alert.messageText = "This clip can't be edited"
-        alert.informativeText = "ClipBar can edit text, rich text, links, and colors. \(item.type.label) clips are kept as-is."
-        alert.addButton(withTitle: "OK")
+        alert.messageText = L10n.t("This clip can't be edited", "这条内容无法编辑")
+        alert.informativeText = L10n.t("ClipBar can edit text, rich text, links, and colors. \(item.type.label) clips are kept as-is.", "ClipBar 支持编辑文本、富文本、链接和颜色，\(item.type.label)内容将保持原样。")
+        alert.addButton(withTitle: L10n.t("OK", "好"))
         alert.runModal()
     }
 }
@@ -152,7 +152,7 @@ private final class TextClipEditorController: NSObject, NSTextViewDelegate, NSWi
         cancelButton.bezelStyle = .rounded
         cancelButton.keyEquivalent = "\u{1b}"
 
-        saveButton.title = "Save"
+        saveButton.title = L10n.t("Save", "保存")
         saveButton.target = self
         saveButton.action = #selector(save)
         saveButton.bezelStyle = .rounded

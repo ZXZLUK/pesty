@@ -106,11 +106,11 @@ struct BarView: View {
 
     private var moreMenu: some View {
         Menu {
-            Button("Settings…") { AppController.shared.showSettings() }
-            Button("Clear History") { store.clearHistory() }
+            Button(L10n.t("Settings…", "设置…")) { AppController.shared.showSettings() }
+            Button(L10n.t("Clear History", "清空历史")) { store.clearHistory() }
             Divider()
-            Button("About ClipBar") { AppController.shared.showAbout() }
-            Button("Quit ClipBar") { NSApp.terminate(nil) }
+            Button(L10n.t("About ClipBar", "关于 ClipBar")) { AppController.shared.showAbout() }
+            Button(L10n.t("Quit ClipBar", "退出 ClipBar")) { NSApp.terminate(nil) }
         } label: {
             Image(systemName: "ellipsis")
                 .font(.system(size: 15, weight: .semibold))
@@ -172,8 +172,8 @@ struct BarView: View {
                 .font(.system(size: 34, weight: .light))
                 .foregroundStyle(Theme.chromeTextTertiary)
             Text(store.searchText.isEmpty
-                 ? "Nothing copied yet"
-                 : "No matches for “\(store.searchText)”")
+                 ? L10n.t("Nothing copied yet", "还没有复制过内容")
+                 : L10n.t("No matches for “\(store.searchText)”", "没有匹配“\(store.searchText)”的结果"))
                 .font(.system(size: 13))
                 .foregroundStyle(Theme.chromeTextSecondary)
         }

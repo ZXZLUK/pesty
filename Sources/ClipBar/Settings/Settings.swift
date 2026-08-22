@@ -28,6 +28,15 @@ enum ShortcutModifier: CaseIterable, Identifiable {
         }
     }
 
+    var titleZH: String {
+        switch self {
+        case .command: return "Command 键"
+        case .option: return "Option 键"
+        case .control: return "Control 键"
+        case .shift: return "Shift 键"
+        }
+    }
+
     var symbol: String {
         switch self {
         case .command: return "⌘"
@@ -55,6 +64,13 @@ enum HistoryRetentionMode: String, CaseIterable, Identifiable {
         switch self {
         case .itemCount: return "Number of clips"
         case .timeInterval: return "Age of clips"
+        }
+    }
+
+    var titleZH: String {
+        switch self {
+        case .itemCount: return "按数量"
+        case .timeInterval: return "按时间"
         }
     }
 }

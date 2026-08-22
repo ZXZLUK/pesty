@@ -20,8 +20,8 @@ struct PinboardTabs: View {
                         store.source = .pinboard(board.id); store.selectFirst()
                     }
                     .contextMenu {
-                        Button("Rename…") { rename(board) }
-                        Button("Delete Pinboard", role: .destructive) {
+                        Button(L10n.t("Rename…", "重命名…")) { rename(board) }
+                        Button(L10n.t("Delete Pinboard", "删除 Pinboard"), role: .destructive) {
                             store.deletePinboard(board.id)
                         }
                     }
@@ -66,13 +66,13 @@ struct PinboardTabs: View {
     }
 
     private func addPinboard() {
-        let board = store.addPinboard(name: "New Pinboard")
+        let board = store.addPinboard(name: L10n.t("New Pinboard", "新 Pinboard"))
         store.source = .pinboard(board.id)
     }
 
     private func rename(_ board: Pinboard) {
-        if let name = TextPrompt.run(title: "Rename Pinboard",
-                                     message: "Enter a new name",
+        if let name = TextPrompt.run(title: L10n.t("Rename Pinboard", "重命名 Pinboard"),
+                                     message: L10n.t("Enter a new name", "输入新名称"),
                                      defaultValue: board.name) {
             store.renamePinboard(board.id, to: name)
         }
@@ -87,7 +87,7 @@ enum TextPrompt {
         let alert = NSAlert()
         alert.messageText = title
         alert.informativeText = message
-        alert.addButton(withTitle: "OK")
+        alert.addButton(withTitle: L10n.t("OK", "好"))
         alert.addButton(withTitle: "Cancel")
         let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
         field.stringValue = defaultValue

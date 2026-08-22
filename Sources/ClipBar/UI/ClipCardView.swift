@@ -198,36 +198,36 @@ struct ClipCardView: View {
         }
 
         Button { AppController.shared.pasteItem(item, asPlainText: true) } label: {
-            Label("Paste as Plain Text", systemImage: "text.alignleft")
+            Label(L10n.t("Paste as Plain Text", "粘贴为纯文本"), systemImage: "text.alignleft")
         }
         .disabled(item.plainText == nil)
 
         Button { AppController.shared.copyItem(item) } label: {
-            Label("Copy", systemImage: "doc.on.doc")
+            Label(L10n.t("Copy", "拷贝"), systemImage: "doc.on.doc")
         }
 
         Divider()
 
         Button { AppController.shared.editItem(item) } label: {
-            Label("Edit", systemImage: "pencil")
+            Label(L10n.t("Edit", "编辑"), systemImage: "pencil")
         }
         .disabled(!isEditable)
 
         if writingToolsAvailable {
             Button { AppController.shared.editItem(item, launchWritingTools: true) } label: {
-                Label("Writing Tools", systemImage: "pencil.and.scribble")
+                Label(L10n.t("Writing Tools", "写作工具"), systemImage: "pencil.and.scribble")
             }
         }
 
         Button { renameItem() } label: {
-            Label("Rename…", systemImage: "pencil.line")
+            Label(L10n.t("Rename…", "重命名…"), systemImage: "pencil.line")
         }
 
         Divider()
 
         Menu {
             if store.pinboards.isEmpty {
-                Button("No Pinboards Yet") {}
+                Button(L10n.t("No Pinboards Yet", "还没有 Pinboard")) {}
                     .disabled(true)
             } else {
                 ForEach(store.pinboards) { b in
@@ -243,20 +243,20 @@ struct ClipCardView: View {
             }
             Divider()
             Button { pinToNewBoard() } label: {
-                Label("Create Pinboard…", systemImage: "plus")
+                Label(L10n.t("Create Pinboard…", "新建 Pinboard…"), systemImage: "plus")
             }
         } label: {
-            Label("Pin", systemImage: "pin")
+            Label(L10n.t("Pin", "Pin 到收藏板"), systemImage: "pin")
         }
 
         Divider()
 
         Button { AppController.shared.showPreview(for: item) } label: {
-            Label("Preview", systemImage: "eye")
+            Label(L10n.t("Preview", "预览"), systemImage: "eye")
         }
 
         Button { AppController.shared.showSharePicker(for: item) } label: {
-            Label("Share", systemImage: "square.and.arrow.up")
+            Label(L10n.t("Share", "分享"), systemImage: "square.and.arrow.up")
         }
 
         Divider()
@@ -270,7 +270,7 @@ struct ClipCardView: View {
 
     private var deleteMenuTitle: String {
         let count = store.multiSelectedIDs.contains(item.id) ? store.multiSelectedIDs.count : 1
-        return count > 1 ? "Delete \(count) Clips" : "Delete"
+        return count > 1 ? L10n.t("Delete \(count) Clips", "删除 \(count) 条") : L10n.t("Delete", "删除")
     }
 
     private var isEditable: Bool {
@@ -284,14 +284,14 @@ struct ClipCardView: View {
     }
 
     private func renameItem() {
-        if let title = TextPrompt.run(title: "Rename", message: "Card title",
+        if let title = TextPrompt.run(title: L10n.t("Rename", "重命名"), message: L10n.t("Card title", "卡片标题"),
                                       defaultValue: item.customTitle ?? "") {
             store.setTitle(title, for: item)
         }
     }
 
     private func pinToNewBoard() {
-        if let name = TextPrompt.run(title: "Create Pinboard", message: "Name") {
+        if let name = TextPrompt.run(title: L10n.t("Create Pinboard", "新建 Pinboard"), message: L10n.t("Name", "名称")) {
             let board = store.addPinboard(name: name)
             store.saveToPinboard(item, boardID: board.id)
         }

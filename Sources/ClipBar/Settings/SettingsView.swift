@@ -5,11 +5,11 @@ struct SettingsView: View {
     var body: some View {
         TabView {
             GeneralSettings()
-                .tabItem { Label("General", systemImage: "gearshape") }
+                .tabItem { Label(L10n.t("General", "通用"), systemImage: "gearshape") }
             PrivacySettings()
-                .tabItem { Label("Privacy", systemImage: "hand.raised") }
+                .tabItem { Label(L10n.t("Privacy", "隐私"), systemImage: "hand.raised") }
             AboutView()
-                .tabItem { Label("About", systemImage: "info.circle") }
+                .tabItem { Label(L10n.t("About", "关于"), systemImage: "info.circle") }
         }
         .frame(width: 520, height: 560)
     }
@@ -20,15 +20,17 @@ private struct PrivacySettings: View {
 
     var body: some View {
         Form {
-            Section("Excluded Apps") {
-                Text("ClipBar will not save anything copied while one of these apps is frontmost. Copies made from a browser extension are attributed to the browser, so add that too if you use one.")
+            Section(L10n.t("Excluded Apps", "排除的应用")) {
+                Text(L10n.t("ClipBar will not save anything copied while one of these apps is frontmost. Copies made from a browser extension are attributed to the browser, so add that too if you use one.",
+                            "ClipBar 不会保存这些应用处于前台时复制的内容。浏览器扩展的复制会被归因到浏览器本身，如果你在用扩展，请把浏览器也加上。"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
                 if settings.ignoredSourceAppBundleIDs.isEmpty {
-                    ContentUnavailableView("No apps excluded",
+                    ContentUnavailableView(L10n.t("No apps excluded", "暂无排除的应用"),
                                            systemImage: "hand.raised",
-                                           description: Text("Add an app to keep its copied content out of ClipBar."))
+                                           description: Text(L10n.t("Add an app to keep its copied content out of ClipBar.",
+                                                                    "添加一个应用，让它复制的内容不进入 ClipBar。")))
                         .padding(.vertical, 12)
                 } else {
                     ForEach(settings.ignoredSourceAppBundleIDs, id: \.self) { bundleID in
@@ -37,7 +39,7 @@ private struct PrivacySettings: View {
                 }
 
                 Button { chooseApps() } label: {
-                    Label("Add App…", systemImage: "plus")
+                    Label(L10n.t("Add App…", "添加应用…"), systemImage: "plus")
                 }
             }
         }
@@ -64,16 +66,18 @@ private struct PrivacySettings: View {
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
-            .help("Allow clips from \(applicationName(for: bundleID))")
+            .help(L10n.t("Allow clips from \(applicationName(for: bundleID))",
+                         "恢复记录 \(applicationName(for: bundleID)) 的复制内容"))
         }
         .padding(.vertical, 4)
     }
 
     private func chooseApps() {
         let panel = NSOpenPanel()
-        panel.title = "Exclude Apps from ClipBar"
-        panel.message = "ClipBar will ignore copied content from the apps you choose."
-        panel.prompt = "Add Apps"
+        panel.title = L10n.t("Exclude Apps from ClipBar", "从 ClipBar 排除应用")
+        panel.message = L10n.t("ClipBar will ignore copied content from the apps you choose.",
+                               "ClipBar 将忽略你选择的这些应用复制的内容。")
+        panel.prompt = L10n.t("Add Apps", "添加")
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = true
@@ -106,49 +110,51 @@ private struct GeneralSettings: View {
 
     var body: some View {
         Form {
-            Section("Activation") {
-                LabeledContent("Show ClipBar") { HotkeyRecorderView() }
+            Section(L10n.t("Activation", "呼出")) {
+                LabeledContent(L10n.t("Show ClipBar", "打开 ClipBar")) { HotkeyRecorderView() }
             }
 
             HistoryRetentionSettings()
 
-            Section("Quick Paste") {
-                LabeledContent("Paste items 1–9") {
+            Section(L10n.t("Quick Paste", "快速粘贴")) {
+                LabeledContent(L10n.t("Paste items 1–9", "粘贴第 1–9 项")) {
                     HStack(spacing: 6) {
                         modifierPicker(selection: $settings.quickPasteModifier)
                         Text("+ 1…9").foregroundStyle(.secondary)
                     }
                 }
-                LabeledContent("Paste as plain text") {
+                LabeledContent(L10n.t("Paste as plain text", "粘贴为纯文本")) {
                     modifierPicker(selection: $settings.plainTextModifier)
                 }
-                Text("Hold the plain-text modifier while using Quick Paste to strip formatting — with the defaults, ⌘⇧1 pastes the first clip as plain text. The two roles can never share a modifier; picking one that is taken swaps them.")
+                Text(L10n.t("Hold the plain-text modifier while using Quick Paste to strip formatting — with the defaults, ⌘⇧1 pastes the first clip as plain text. The two roles can never share a modifier; picking one that is taken swaps them.",
+                            "快速粘贴时按住纯文本修饰键可去掉格式——默认设置下 ⌘⇧1 会以纯文本粘贴第一项。两个修饰键不能相同；选择已被占用的修饰键会自动互换。"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
-            Section("Behavior") {
+            Section(L10n.t("Behavior", "行为")) {
                 #if !MAS
-                Toggle("Paste directly into the active app", isOn: $settings.pasteDirectly)
+                Toggle(L10n.t("Paste directly into the active app", "直接粘贴到当前应用"), isOn: $settings.pasteDirectly)
                 #endif
-                Toggle("Ignore passwords (concealed clips)", isOn: $settings.ignoreConcealed)
-                Toggle("Play sound on paste", isOn: $settings.playSound)
-                Toggle("Hide ClipBar when clicking outside", isOn: $settings.hideOnClickOutside)
-                Toggle("Launch at login", isOn: $settings.launchAtLogin)
-                Toggle("Show ClipBar in the menu bar", isOn: $settings.showMenuBarIcon)
+                Toggle(L10n.t("Ignore passwords (concealed clips)", "忽略密码（隐藏类型的复制）"), isOn: $settings.ignoreConcealed)
+                Toggle(L10n.t("Play sound on paste", "粘贴时播放音效"), isOn: $settings.playSound)
+                Toggle(L10n.t("Hide ClipBar when clicking outside", "点击外部时收起 ClipBar"), isOn: $settings.hideOnClickOutside)
+                Toggle(L10n.t("Launch at login", "登录时自动启动"), isOn: $settings.launchAtLogin)
+                Toggle(L10n.t("Show ClipBar in the menu bar", "在菜单栏显示 ClipBar 图标"), isOn: $settings.showMenuBarIcon)
                 VStack(alignment: .leading) {
-                    LabeledContent("Bar height", value: "\(Int(settings.barHeight)) px")
+                    LabeledContent(L10n.t("Bar height", "卡片条高度"), value: "\(Int(settings.barHeight)) px")
                     Slider(value: $settings.barHeight, in: 300...720, step: 10)
                 }
                 #if MAS
-                Text("Select a clip to copy it, then press ⌘V to paste it into your app.")
+                Text(L10n.t("Select a clip to copy it, then press ⌘V to paste it into your app.",
+                            "选择一条内容完成复制，然后按 ⌘V 粘贴到你的应用里。"))
                     .font(.caption).foregroundStyle(.secondary)
                 #endif
             }
 
             #if MAS
-            Section("Sync") {
-                Toggle("Sync history with iCloud", isOn: Binding(
+            Section(L10n.t("Sync", "同步")) {
+                Toggle(L10n.t("Sync history with iCloud", "通过 iCloud 同步历史"), isOn: Binding(
                     get: { settings.cloudKitSync },
                     set: { on in
                         settings.cloudKitSync = on
@@ -158,49 +164,51 @@ private struct GeneralSettings: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
             #else
-            Section("Sync") {
-                Toggle("Sync clipboard via iCloud Drive", isOn: Binding(
+            Section(L10n.t("Sync", "同步")) {
+                Toggle(L10n.t("Sync clipboard via iCloud Drive", "通过 iCloud Drive 同步剪贴板"), isOn: Binding(
                     get: { settings.iCloudSync },
                     set: { _ in AppController.shared.toggleICloudSync() }))
                 Text(ClipboardStore.shared.iCloudAvailable
-                     ? "Keeps your history and pinboards in sync across your Macs through iCloud Drive."
-                     : "Sign in to iCloud and enable iCloud Drive to use sync.")
+                     ? L10n.t("Keeps your history and pinboards in sync across your Macs through iCloud Drive.",
+                              "通过 iCloud Drive 在你的多台 Mac 之间同步历史和 Pinboard。")
+                     : L10n.t("Sign in to iCloud and enable iCloud Drive to use sync.",
+                              "登录 iCloud 并开启 iCloud Drive 后才能使用同步。"))
                     .font(.caption).foregroundStyle(.secondary)
             }
             #endif
 
             #if !MAS
-            Section("Permissions") {
+            Section(L10n.t("Permissions", "权限")) {
                 HStack(spacing: 10) {
                     Image(systemName: accessibilityGranted ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
                         .foregroundStyle(accessibilityGranted ? .green : .orange)
                         .font(.title3)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Accessibility")
+                        Text(L10n.t("Accessibility", "辅助功能"))
                         Text(accessibilityGranted
-                             ? "Granted — direct paste is enabled."
+                             ? L10n.t("Granted — direct paste is enabled.", "已授权——直接粘贴可用。")
                              : (requestedGrant
-                                ? "Waiting… toggle ClipBar on in System Settings."
-                                : "Required to paste directly into other apps."))
+                                ? L10n.t("Waiting… toggle ClipBar on in System Settings.", "等待中……请在系统设置里打开 ClipBar 的开关。")
+                                : L10n.t("Required to paste directly into other apps.", "直接粘贴到其他应用需要此权限。")))
                             .font(.caption)
                             .foregroundStyle(accessibilityGranted ? .green : .secondary)
                     }
                     Spacer()
                     if !accessibilityGranted {
-                        Button("Open Settings") {
+                        Button(L10n.t("Open Settings", "打开系统设置")) {
                             requestedGrant = true
                             PasteService.ensureAccessibility(prompt: true)
                             openAccessibilityPane()
                         }
                     } else if requestedGrant {
-                        Button("Restart ClipBar") { AppController.restart() }
+                        Button(L10n.t("Restart ClipBar", "重启 ClipBar")) { AppController.restart() }
                     }
                 }
             }
             #endif
 
-            Section("Data") {
-                Button("Clear Clipboard History", role: .destructive) {
+            Section(L10n.t("Data", "数据")) {
+                Button(L10n.t("Clear Clipboard History", "清空剪贴板历史"), role: .destructive) {
                     ClipboardStore.shared.clearHistory()
                 }
             }
@@ -226,7 +234,7 @@ private struct GeneralSettings: View {
     private func modifierPicker(selection: Binding<Int>) -> some View {
         Picker("", selection: selection) {
             ForEach(ShortcutModifier.allCases) { modifier in
-                Text("\(modifier.symbol) \(modifier.title)").tag(modifier.carbonValue)
+                Text("\(modifier.symbol) \(L10n.t(modifier.title, modifier.titleZH))").tag(modifier.carbonValue)
             }
         }
         .labelsHidden()
@@ -243,27 +251,27 @@ private struct HistoryRetentionSettings: View {
     @State private var pendingRemovalCount = 0
     @State private var confirmingChange = false
 
-    private static let dayChoices: [(days: Int, label: String)] = [
-        (1, "1 Day"), (7, "1 Week"), (14, "2 Weeks"), (30, "1 Month"),
-        (90, "3 Months"), (180, "6 Months"), (365, "1 Year")
+    private static let dayChoices: [(days: Int, label: String, labelZH: String)] = [
+        (1, "1 Day", "1 天"), (7, "1 Week", "1 周"), (14, "2 Weeks", "2 周"), (30, "1 Month", "1 个月"),
+        (90, "3 Months", "3 个月"), (180, "6 Months", "6 个月"), (365, "1 Year", "1 年")
     ]
 
     var body: some View {
-        Section("History") {
-            Picker("Limit history by", selection: $draftMode) {
+        Section(L10n.t("History", "历史记录")) {
+            Picker(L10n.t("Limit history by", "限制方式"), selection: $draftMode) {
                 ForEach(HistoryRetentionMode.allCases) { mode in
-                    Text(mode.title).tag(mode)
+                    Text(mode.titleZH).tag(mode)
                 }
             }
             .pickerStyle(.segmented)
             if draftMode == .itemCount {
                 Stepper(value: $draftLimit, in: 50...5000, step: 50) {
-                    LabeledContent("Keep at most", value: "\(draftLimit) clips")
+                    LabeledContent(L10n.t("Keep at most", "最多保留"), value: L10n.t("\(draftLimit) clips", "\(draftLimit) 条"))
                 }
             } else {
-                Picker("Remove clips older than", selection: $draftDays) {
+                Picker(L10n.t("Remove clips older than", "清除超过以下时长的内容"), selection: $draftDays) {
                     ForEach(Self.dayChoices, id: \.days) { choice in
-                        Text(choice.label).tag(choice.days)
+                        Text(L10n.t(choice.label, choice.labelZH)).tag(choice.days)
                     }
                 }
             }
@@ -274,19 +282,22 @@ private struct HistoryRetentionSettings: View {
         .onChange(of: draftMode) { evaluateDraft() }
         .onChange(of: draftLimit) { evaluateDraft() }
         .onChange(of: draftDays) { evaluateDraft() }
-        .alert("Remove \(pendingRemovalCount) Clips?", isPresented: $confirmingChange) {
-            Button("Remove \(pendingRemovalCount) Clips", role: .destructive) { commit() }
-            Button("Cancel", role: .cancel) { revert() }
+        .alert(L10n.t("Remove \(pendingRemovalCount) Clips?", "移除 \(pendingRemovalCount) 条内容？"), isPresented: $confirmingChange) {
+            Button(L10n.t("Remove \(pendingRemovalCount) Clips", "移除 \(pendingRemovalCount) 条"), role: .destructive) { commit() }
+            Button(L10n.t("Cancel", "取消"), role: .cancel) { revert() }
         } message: {
-            Text("This setting removes \(pendingRemovalCount) clips from history on this Mac now, and keeps pruning automatically. Pinboards are not affected, and there is no undo.")
+            Text(L10n.t("This setting removes \(pendingRemovalCount) clips from history on this Mac now, and keeps pruning automatically. Pinboards are not affected, and there is no undo.",
+                        "此设置会立即从这台 Mac 的历史中移除 \(pendingRemovalCount) 条内容，并持续自动清理。Pinboard 不受影响，且无法撤销。"))
         }
     }
 
     private var footnote: String {
         #if MAS
-        "Pruning tidies this Mac only — synced copies stay on your other devices. Pinned clips are never removed."
+        L10n.t("Pruning tidies this Mac only — synced copies stay on your other devices. Pinned clips are never removed.",
+               "清理只影响本机——其他设备上的同步副本保留。Pin 住的内容永不被清除。")
         #else
-        "Pruning applies to this Mac's history. Pinned clips are never removed."
+        L10n.t("Pruning applies to this Mac's history. Pinned clips are never removed.",
+               "清理只影响本机历史。Pin 住的内容永不被清除。")
         #endif
     }
 
@@ -321,23 +332,24 @@ private struct AboutView: View {
             Image(nsImage: NSApp.applicationIconImage ?? NSImage())
                 .resizable().frame(width: 88, height: 88)
             Text("ClipBar").font(.system(size: 26, weight: .bold))
-            Text("Version \(Bundle.main.appVersion)")
+            Text(L10n.t("Version \(Bundle.main.appVersion)", "版本 \(Bundle.main.appVersion)"))
                 .font(.subheadline).foregroundStyle(.secondary)
-            Text("A free, open-source clipboard manager for macOS.\nInspired by Paste.")
+            Text(L10n.t("A free, open-source clipboard manager for macOS.",
+                        "macOS 上的免费开源剪贴板管理器。"))
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal)
             HStack(spacing: 16) {
-                Link("GitHub", destination: URL(string: "https://github.com/momenbasel/clipbar")!)
-                Link("Report an Issue", destination: URL(string: "https://github.com/momenbasel/clipbar/issues")!)
+                Link(L10n.t("GitHub", "GitHub 仓库"), destination: URL(string: "https://github.com/ZXZLUK/clipbar")!)
+                Link(L10n.t("Report an Issue", "反馈问题"), destination: URL(string: "https://github.com/ZXZLUK/clipbar/issues")!)
             }
             .padding(.top, 4)
-            Button("Quit ClipBar", role: .destructive) {
+            Button(L10n.t("Quit ClipBar", "退出 ClipBar"), role: .destructive) {
                 NSApp.terminate(nil)
             }
             .padding(.top, 8)
             Spacer()
-            Text("MIT Licensed · Made with SwiftUI")
+            Text(L10n.t("MIT Licensed · Made with SwiftUI", "MIT 许可 · 基于 SwiftUI"))
                 .font(.caption).foregroundStyle(.tertiary)
         }
         .padding(28)
