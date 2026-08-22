@@ -68,14 +68,15 @@ CI 只证明云端可编译与可打包，不运行单元测试（workflow 未�
 4. **Pinboard 创建/同步 UI 流**、菜单栏全部入口、编辑器（ClipEditor）、拖拽导出、Writing Tools——未在本次 11 项范围内。
 5. **iCloud Drive 同步与 CloudKit（MAS）**——默认关闭未开启；MAS 构建依赖上游证书，fork 不可构建（RISKS R7）。
 6. **CI 与本机工具链差异**（Xcode 26.3 vs 26.6）带来的行为差异未排查，仅有双方各自通过的事实。
-7. 单元测试对 **store.json 损坏恢复**尚无覆盖（现状：静默清空，见 RISKS R3——属下一阶段修复项而非本基线缺口）。
+7. **本 fork 的 CI 运行**：未执行（GitHub 未向 fork 派发 workflow，需所有者网页端启用；见第二层）。新增代码的云端构建未发生，编译性证据以本机为准。
+8. 单元测试对 **store.json 损坏恢复**尚无覆盖（现状：静默清空，见 RISKS R3——属下一阶段修复项而非本基线缺口）。
 
 ## 复现步骤
 
 ```bash
 # 第一层
 swift test                                   # 期望：21 passed，exit 0
-# 第二层：向分支推送后查看 GitHub Actions "CI" workflow
+# 第二层：需仓库所有者先在 fork 网页端启用 workflows，之后向 main 的 PR 会触发 CI
 # 第三层（本机，会使用真实剪贴板，测试后请自行清理）
 VERSION=0.1.0 BUILD=local bash scripts/build_app.sh
 open packaging/Pesty.app                     # 或直接运行其内二进制
