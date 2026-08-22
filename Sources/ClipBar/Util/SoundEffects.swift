@@ -7,12 +7,19 @@ enum SoundEffects {
     /// Built-in system sounds offered in Settings, ordered subtest-first.
     static let captureChoices: [(name: String, labelEN: String, labelZH: String)] = [
         ("", "Off", "关闭"),
-        ("Tink", "Tink (轻点)", "Tink（轻点）"),
-        ("Pop", "Pop (啵)", "Pop（啵）"),
-        ("Ping", "Ping (叮)", "Ping（叮）"),
-        ("Glass", "Glass (玻璃)", "Glass（玻璃）"),
-        ("Bubbles", "Bubbles (气泡)", "Bubbles（气泡）"),
-        ("Submarine", "Submarine (低鸣)", "Submarine（低鸣）"),
+        ("Tink", "Tink", "Tink（轻嗒）"),
+        ("Pop", "Pop", "Pop（啵）"),
+        ("Frog", "Frog", "Frog（青蛙）"),
+        ("Glass", "Glass", "Glass（玻璃）"),
+        ("Ping", "Ping", "Ping（叮）"),
+        ("Morse", "Morse", "Morse（电码）"),
+        ("Sosumi", "Sosumi", "Sosumi（经典）"),
+        ("Hero", "Hero", "Hero（上扬）"),
+        ("Purr", "Purr", "Purr（呼噜）"),
+        ("Bottle", "Bottle", "Bottle（瓶哨）"),
+        ("Blow", "Blow", "Blow（吹气）"),
+        ("Bubbles", "Bubbles", "Bubbles（气泡）"),
+        ("Submarine", "Submarine", "Submarine（低鸣）"),
     ]
 
     static func playCapture() {
