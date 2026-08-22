@@ -2,6 +2,14 @@ import AppKit
 import SwiftUI
 import Carbon.HIToolbox
 
+/// Preview window that closes on Escape (plain NSWindow ignores it).
+final class PreviewWindow: NSWindow {
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        if event.keyCode == kVK_Escape { performClose(self); return true }
+        return super.performKeyEquivalent(with: event)
+    }
+}
+
 @MainActor
 final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
     static let shared = AppController()
@@ -406,7 +414,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
             return
         }
 
-        let window = NSWindow(contentViewController: host)
+        let window = PreviewWindow(contentViewController: host)
         window.title = title
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
         window.setContentSize(NSSize(width: 540, height: 400))
@@ -553,6 +561,16 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
 
         switch code {
+        case kVK_Space:
+            // Finder-style Quick Look: with no active query, Space previews the
+            // selected clip instead of starting a search with a blank. While a
+            // query is active, Space falls through so multi-word searches work.
+            if !cmd && !ctrl && !opt, store.searchText.isEmpty,
+               let item = store.selectedItem {
+                showPreview(for: item)
+                return nil
+            }
+            break
         case kVK_Escape:
             if !store.multiSelectedIDs.isEmpty {
                 store.clearMultiSelection()
