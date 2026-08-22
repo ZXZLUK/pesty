@@ -25,7 +25,7 @@ enum SoundEffects {
     static func playCapture() {
         let name = Settings.shared.captureSound
         guard !name.isEmpty, let sound = NSSound(named: NSSound.Name(name)) else { return }
-        sound.volume = 0.18
+        sound.volume = 0.09
         sound.play()
     }
 
