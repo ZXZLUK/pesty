@@ -107,6 +107,8 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         store.saveNow(wait: true)
+        // 刷新当日备份快照：每天最后一份总是当天最新状态（runBackupNow 同日覆盖）。
+        store.runBackupNow()
     }
 
     func windowWillClose(_ notification: Notification) {
