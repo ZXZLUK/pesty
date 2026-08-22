@@ -30,9 +30,10 @@
 | Workflow | `.github/workflows/ci.yml`（随冻结基准继承，未修改） |
 | Runner | `macos-15` + Xcode 26.3（与本机 26.5/26.6 不同版本，属交叉旁证） |
 | 步骤 | `swift build -v` → `VERSION=0.0.0 BUILD=ci ./scripts/build_app.sh` |
-| 本 PR 结果 | 见 PR Checks（创建后回填于下方"CI 实测"） |
 
-**CI 实测**：（待 PR 创建后回填——本文件承诺在 CI 完成后追加真实结论，不预填。）
+**CI 实测（如实记录，2026-08-22）**：本 fork 上 CI **未能触发**——fork 经 API 创建后 GitHub 未向分支派发任何 workflow 运行（已尝试：确认 Actions enabled、空提交重触发、PR 关闭/重开、workflow enable API；workflow 索引在空与非空之间反复，零 run）。需要仓库所有者在网页端首次启用 workflows 后才会运行。因此本 PR 的 CI 层**无结论**，不以下述旁证冒充本分支运行结果。
+
+**旁证（非本分支运行）**：同一 workflow 文件在上游 `momenbasel/pesty` 的 **base SHA `70fd6b2`** 上结论为 `Build (Swift 6, macOS): success`（GitHub check-runs API 查询）。本分支未修改 ci.yml 且生产源码与 base 完全一致（`git diff 70fd6b2 -- Sources` 为空），故该结论对"上游代码可编译打包"有效，但对新增的 Tests target 与文档**无覆盖**——新增部分的可编译性由本机 `swift build`/`swift test`（退出码 0）证明。
 
 CI 只证明云端可编译与可打包，不运行单元测试（workflow 未包含 `swift test`），也不做任何运行时验证。
 
