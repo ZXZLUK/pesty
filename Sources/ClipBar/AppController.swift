@@ -206,10 +206,26 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     private func updateStatusItemIcon(_ item: NSStatusItem) {
-        item.button?.image = NSImage(
-            systemSymbolName: monitor.isPaused ? "pause.circle" : "doc.on.clipboard",
-            accessibilityDescription: "ClipBar")
-        item.button?.image?.isTemplate = true
+        // Colored app-icon thumbnail instead of a monochrome template symbol:
+        // menu bars crowded with dark icons make a template glyph easy to miss.
+        if monitor.isPaused {
+            let config = NSImage.SymbolConfiguration(paletteColors: [.systemOrange, .white])
+            let paused = NSImage(systemSymbolName: "pause.circle.fill",
+                                 accessibilityDescription: "ClipBar paused")?
+                .withSymbolConfiguration(config)
+            item.button?.image = paused
+            item.button?.image?.isTemplate = false
+            return
+        }
+        let source = NSApp.applicationIconImage ?? NSImage(named: NSImage.applicationIconName) ?? NSImage()
+        let target = NSSize(width: 18, height: 18)
+        let image = NSImage(size: target)
+        image.lockFocus()
+        source.draw(in: NSRect(origin: .zero, size: target),
+                    from: .zero, operation: .sourceOver, fraction: 1)
+        image.unlockFocus()
+        item.button?.image = image
+        item.button?.image?.isTemplate = false
     }
 
     func showAbout() {
