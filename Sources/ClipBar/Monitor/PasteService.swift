@@ -18,7 +18,9 @@ enum PasteService {
     static func copy(_ item: ClipItem,
                      asPlainText: Bool = false,
                      to pasteboard: NSPasteboard = .general) -> Int? {
-        if asPlainText, let text = item.plainText {
+        let fullText = ClipboardStore.shared.fullText(for: item)
+        let fullRTF = ClipboardStore.shared.fullRTF(for: item)
+        if asPlainText, let text = (item.type == .file ? item.plainText : fullText) ?? item.plainText {
             pasteboard.clearContents()
             pasteboard.setString(text, forType: .string)
             markSource(of: item, on: pasteboard)
@@ -47,10 +49,10 @@ enum PasteService {
                 pasteboard.setString(hex, forType: .string)
             }
         case .richText:
-            if let rtf = item.rtfData { pasteboard.setData(rtf, forType: .rtf) }
-            if let t = item.text { pasteboard.setString(t, forType: .string) }
+            if let rtf = fullRTF { pasteboard.setData(rtf, forType: .rtf) }
+            if let t = fullText { pasteboard.setString(t, forType: .string) }
         case .text, .link:
-            if let t = item.text { pasteboard.setString(t, forType: .string) }
+            if let t = fullText { pasteboard.setString(t, forType: .string) }
         }
         markSource(of: item, on: pasteboard)
         return pasteboard.changeCount

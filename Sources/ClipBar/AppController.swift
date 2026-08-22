@@ -84,7 +84,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        store.saveNow()
+        store.saveNow(wait: true)
     }
 
     func windowWillClose(_ notification: Notification) {
@@ -199,6 +199,17 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
     @objc private func menuTogglePause() { toggleClipBarPause() }
     @objc private func menuQuit() { NSApp.terminate(nil) }
     @objc private func menuAbout() { showAbout() }
+
+    /// ⌘⇧T: cycle the bar through 全部 → 文本 → … → 颜色 → 全部.
+    func cycleTypeFilter() {
+        let all = ClipType.allCases
+        guard let current = store.typeFilter,
+              let idx = all.firstIndex(of: current) else {
+            store.typeFilter = all.first
+            return
+        }
+        store.typeFilter = all[(idx + 1) % all.count]
+    }
 
     func toggleClipBarPause() {
         monitor.togglePause()
@@ -359,7 +370,14 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
         suppressAutoHide = true
         defer { suppressAutoHide = false }
 
-        guard let edit = ClipEditor.run(for: item, launchWritingTools: launchWritingTools) else { return }
+        // Editors need the whole payload even when memory keeps only a preview.
+        var full = item
+        if item.textTruncated {
+            full.text = store.fullText(for: item)
+            full.rtfData = store.fullRTF(for: item)
+            full.textTruncated = false
+        }
+        guard let edit = ClipEditor.run(for: full, launchWritingTools: launchWritingTools) else { return }
 
         let changed: Bool
         switch edit {
@@ -488,6 +506,9 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
             return true
         case kVK_ANSI_P:
             toggleClipBarPause()
+            return true
+        case kVK_ANSI_T:
+            cycleTypeFilter()
             return true
         default:
             return false

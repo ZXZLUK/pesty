@@ -54,6 +54,16 @@ final class ClipboardStore {
 
     private let imageCache = NSCache<NSString, NSImage>()
 
+    /// Text/RTF payloads above this size are kept in memory only as a preview
+    /// after the next successful flush; full content is re-read from the
+    /// database on paste/edit. Keeps memory independent of clip size.
+    static let memoryPreviewLimit = 64_000
+    private let saveQueue = DispatchQueue(label: "clipbar.store.save", qos: .utility)
+    private var backupTimer: Timer?
+
+    /// Ephemeral per-presentation type filter for the bar (nil = all).
+    var typeFilter: ClipType?
+
     static var localBase: URL {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("ClipBar", isDirectory: true)
@@ -82,6 +92,34 @@ final class ClipboardStore {
         prepareDirectories()
         db = SQLiteStore(directory: base)
         load()
+        performDailyBackupIfNeeded()
+        let t = Timer(timeInterval: 6 * 3600, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.performDailyBackupIfNeeded() }
+        }
+        RunLoop.main.add(t, forMode: .common)
+        backupTimer = t
+    }
+
+    /// One snapshot per day into backups/, newest 7 kept (VACUUM INTO gives a
+    /// consistent online copy without stopping the app).
+    private func performDailyBackupIfNeeded() {
+        guard let db else { return }
+        let dir = baseDir.appendingPathComponent("backups", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true,
+                                                 attributes: [.posixPermissions: 0o700])
+        let stamp = ISO8601DateFormatter().string(from: Date()).prefix(10)
+        let target = dir.appendingPathComponent("history-\(stamp).db")
+        guard !FileManager.default.fileExists(atPath: target.path) else { return }
+        guard db.backup(to: target) else {
+            NSLog("ClipBar: daily backup failed"); return
+        }
+        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: target.path)
+        if let files = try? FileManager.default.contentsOfDirectory(atPath: dir.path).sorted(),
+           files.count > 7 {
+            for name in files.dropLast(7) {
+                try? FileManager.default.removeItem(at: dir.appendingPathComponent(name))
+            }
+        }
     }
 
     private func prepareDirectories() {
@@ -99,9 +137,12 @@ final class ClipboardStore {
         case .pinboard(let id):
             base = pinboards.first(where: { $0.id == id })?.items ?? []
         }
+        let filtered: [ClipItem]
+        if let f = typeFilter { filtered = base.filter { $0.type == f } }
+        else { filtered = base }
         let q = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !q.isEmpty else { return base }
-        return base.filter { cachedSearchableText(for: $0).contains(q) }
+        guard !q.isEmpty else { return filtered }
+        return filtered.filter { cachedSearchableText(for: $0).contains(q) }
     }
 
     private func cachedSearchableText(for item: ClipItem) -> String {
@@ -459,6 +500,7 @@ final class ClipboardStore {
     }
 
     func prepareForBarPresentation() {
+        typeFilter = nil
         applyRetentionPolicy()
         clearMultiSelection()
         barPresentationToken &+= 1
@@ -529,6 +571,7 @@ final class ClipboardStore {
             pinboards = snap.pinboards
             selectFirst()
             migrateLegacyJSONIfNeeded()
+            trimMemoryPreviews()
             return
         }
         // Database could not be opened even after quarantine: fall back to the
@@ -566,7 +609,7 @@ final class ClipboardStore {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: work)
     }
 
-    func saveNow() {
+    func saveNow(wait: Bool = false) {
         guard let db else {
             NSLog("ClipBar: no database handle; skipping save")
             return
@@ -574,15 +617,61 @@ final class ClipboardStore {
         var containers: Set<String> = ["history"]
         for board in pinboards { containers.insert(board.id.uuidString) }
         let deletedBlobs = pendingBlobDeletes
-        guard db.flush(history: history, pinboards: pinboards,
-                       dirtyContainers: containers, deletedBlobIDs: deletedBlobs) else {
-            // KNOWN_ISSUES KI-005: a failed write must not be reported as saved.
-            // Dirty state is retained so the next save retries.
-            NSLog("ClipBar: database flush failed")
-            return
-        }
         pendingBlobDeletes.removeAll(keepingCapacity: true)
-        NotificationCenter.default.post(name: .clipbarStoreDidSave, object: nil)
+        let historyCopy = history
+        let boardsCopy = pinboards
+        let apply: @Sendable () -> Void = { [weak self] in
+            guard db.flush(history: historyCopy, pinboards: boardsCopy,
+                           dirtyContainers: containers, deletedBlobIDs: deletedBlobs) else {
+                // KNOWN_ISSUES KI-005: a failed write must not be reported as saved.
+                NSLog("ClipBar: database flush failed")
+                DispatchQueue.main.async { self?.pendingBlobDeletes = deletedBlobs + (self?.pendingBlobDeletes ?? []) }
+                return
+            }
+            DispatchQueue.main.async { [weak self] in
+                self?.trimMemoryPreviews()
+                NotificationCenter.default.post(name: .clipbarStoreDidSave, object: nil)
+            }
+        }
+        if wait { saveQueue.sync(execute: apply) } else { saveQueue.async(execute: apply) }
+    }
+
+    /// After the database holds the full payload, shrink the in-memory copies
+    /// to previews. Runs on the main thread right after a successful flush.
+    private func trimMemoryPreviews() {
+        let limit = Self.memoryPreviewLimit
+        var trimmed = false
+        // Idempotent by size (not flag): a reload may bring full text back
+        // with textTruncated already set, and it still needs trimming.
+        func trim(_ item: inout ClipItem) {
+            if let t = item.text, t.utf8.count > limit {
+                item.text = String(t.prefix(limit))
+                item.textTruncated = true
+                trimmed = true
+            }
+            if let r = item.rtfData, r.count > limit {
+                item.rtfData = nil
+                item.textTruncated = true
+                trimmed = true
+            }
+        }
+        for i in history.indices { trim(&history[i]) }
+        for b in pinboards.indices {
+            for j in pinboards[b].items.indices { trim(&pinboards[b].items[j]) }
+        }
+        if trimmed { dataVersion &+= 1 }
+    }
+
+    /// Full text/RTF for paste & edit paths (reads the database when the
+    /// in-memory item carries only a preview).
+    func fullText(for item: ClipItem) -> String? {
+        guard item.textTruncated else { return item.text }
+        return db?.loadFullPayload(id: item.id).text ?? item.text
+    }
+
+    func fullRTF(for item: ClipItem) -> Data? {
+        guard item.textTruncated else { return item.rtfData }
+        return db?.loadFullPayload(id: item.id).rtfData ?? item.rtfData
     }
 
     // MARK: - Remote (CloudKit) apply

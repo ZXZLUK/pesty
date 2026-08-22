@@ -38,6 +38,7 @@ struct BarView: View {
             #else
             if settings.iCloudSync { syncButton }
             #endif
+            typeFilterMenu
             searchIndicator
             PinboardTabs()
                 .layoutPriority(1)
@@ -49,6 +50,32 @@ struct BarView: View {
         }
         .padding(.horizontal, 18)
         .frame(height: 56)
+    }
+
+    /// Type filter (⌘⇧T cycles): 全部 / 文本 / 富文本 / 链接 / 图片 / 文件 / 颜色.
+    private var typeFilterMenu: some View {
+        Menu {
+            Button(L10n.t("All Types", "全部类型")) { store.typeFilter = nil }
+            ForEach(ClipType.allCases, id: \.rawValue) { t in
+                Button {
+                    store.typeFilter = store.typeFilter == t ? nil : t
+                } label: {
+                    if store.typeFilter == t {
+                        Label(t.label, systemImage: "checkmark")
+                    } else {
+                        Text(t.label)
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: store.typeFilter?.symbol ?? "line.3.horizontal.decrease.circle")
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(store.typeFilter == nil ? Theme.chromeTextSecondary : Theme.selection)
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help(L10n.t("Filter by type (⌘⇧T cycles)", "按类型过滤（⌘⇧T 循环切换）"))
     }
 
     private var syncButton: some View {

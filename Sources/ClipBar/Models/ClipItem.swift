@@ -16,6 +16,12 @@ struct ClipItem: Identifiable, Codable, Equatable {
     var customTitle: String?
     var createdAt: Date
 
+    /// True when `text`/`rtfData` hold only a memory preview (first
+    /// `ClipboardStore.memoryPreviewLimit` bytes) and the full payload lives in
+    /// the database. Paste/edit paths must fetch the full content via
+    /// `ClipboardStore.fullText/fullRTF`. Old data decodes with `false`.
+    var textTruncated: Bool = false
+
     init(id: UUID = UUID(),
          type: ClipType,
          text: String? = nil,
@@ -27,7 +33,8 @@ struct ClipItem: Identifiable, Codable, Equatable {
          sourceBundleID: String? = nil,
          sourceAppName: String? = nil,
          customTitle: String? = nil,
-         createdAt: Date = Date()) {
+         createdAt: Date = Date(),
+         textTruncated: Bool = false) {
         self.id = id
         self.type = type
         self.text = text
@@ -40,6 +47,30 @@ struct ClipItem: Identifiable, Codable, Equatable {
         self.sourceAppName = sourceAppName
         self.customTitle = customTitle
         self.createdAt = createdAt
+        self.textTruncated = textTruncated
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, type, text, rtfData, imageFileName, imageHash
+        case fileURLs, colorHex, sourceBundleID, sourceAppName, customTitle
+        case createdAt, textTruncated
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        type = try c.decode(ClipType.self, forKey: .type)
+        text = try c.decodeIfPresent(String.self, forKey: .text)
+        rtfData = try c.decodeIfPresent(Data.self, forKey: .rtfData)
+        imageFileName = try c.decodeIfPresent(String.self, forKey: .imageFileName)
+        imageHash = try c.decodeIfPresent(String.self, forKey: .imageHash)
+        fileURLs = try c.decodeIfPresent([String].self, forKey: .fileURLs) ?? []
+        colorHex = try c.decodeIfPresent(String.self, forKey: .colorHex)
+        sourceBundleID = try c.decodeIfPresent(String.self, forKey: .sourceBundleID)
+        sourceAppName = try c.decodeIfPresent(String.self, forKey: .sourceAppName)
+        customTitle = try c.decodeIfPresent(String.self, forKey: .customTitle)
+        createdAt = try c.decode(Date.self, forKey: .createdAt)
+        textTruncated = try c.decodeIfPresent(Bool.self, forKey: .textTruncated) ?? false
     }
 
     var charCount: Int { text?.count ?? 0 }
