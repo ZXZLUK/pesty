@@ -92,12 +92,31 @@ final class ClipboardStore {
         prepareDirectories()
         db = SQLiteStore(directory: base)
         load()
+        performStorageHygiene()
         performDailyBackupIfNeeded()
         let t = Timer(timeInterval: 6 * 3600, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.performDailyBackupIfNeeded() }
         }
         RunLoop.main.add(t, forMode: .common)
         backupTimer = t
+    }
+
+    /// Startup housekeeping: drop blob files orphaned by crashes, and cap the
+    /// quarantine/migration files so they cannot accumulate forever.
+    private func performStorageHygiene() {
+        let orphans = db?.deleteUnreferencedBlobs() ?? 0
+        if orphans > 0 { NSLog("ClipBar: removed \(orphans) orphan blob file(s)") }
+        let fm = FileManager.default
+        guard let files = try? fm.contentsOfDirectory(atPath: baseDir.path) else { return }
+        let prefixes = ["store.json.corrupt-", "store.json.migrated-", "history.db.corrupt-"]
+        for prefix in prefixes {
+            let sorted = files.filter { $0.hasPrefix(prefix) }.sorted()
+            if sorted.count > 5 {
+                for name in sorted.prefix(sorted.count - 5) {
+                    try? fm.removeItem(at: baseDir.appendingPathComponent(name))
+                }
+            }
+        }
     }
 
     /// One snapshot per day into backups/, newest 7 kept (VACUUM INTO gives a
@@ -402,10 +421,10 @@ final class ClipboardStore {
     }
 
     private func removeContentDuplicates(of item: ClipItem, in items: inout [ClipItem]) {
-        let key = contentKey(item)
-        let duplicates = items.filter { $0.id != item.id && contentKey($0) == key }
+        let key = item.contentKey
+        let duplicates = items.filter { $0.id != item.id && $0.contentKey == key }
         guard !duplicates.isEmpty else { return }
-        items.removeAll { $0.id != item.id && contentKey($0) == key }
+        items.removeAll { $0.id != item.id && $0.contentKey == key }
         for duplicate in duplicates { deleteImageFile(duplicate) }
     }
 
@@ -744,8 +763,8 @@ final class ClipboardStore {
     private func applyRemoteToHistory(_ item: ClipItem) {
         let replaced = history.filter { $0.id == item.id }
         history.removeAll { $0.id == item.id }
-        let key = contentKey(item)
-        if let dupIdx = history.firstIndex(where: { contentKey($0) == key }) {
+        let key = item.contentKey
+        if let dupIdx = history.firstIndex(where: { $0.contentKey == key }) {
             let dup = history[dupIdx]
             if dup.createdAt >= item.createdAt {
                 deleteImageFile(item)
@@ -772,8 +791,8 @@ final class ClipboardStore {
         history.removeAll { $0.id == item.id }
         replaced += pinboards[i].items.filter { $0.id == item.id }
         pinboards[i].items.removeAll { $0.id == item.id }
-        let key = contentKey(item)
-        if let dupIdx = pinboards[i].items.firstIndex(where: { contentKey($0) == key }) {
+        let key = item.contentKey
+        if let dupIdx = pinboards[i].items.firstIndex(where: { $0.contentKey == key }) {
             let dup = pinboards[i].items[dupIdx]
             if dup.createdAt >= item.createdAt {
                 deleteImageFile(item)
@@ -787,15 +806,6 @@ final class ClipboardStore {
         retentionPrunedRecordNames.remove(item.id.uuidString)
         // Same-id replace: drop the old image file unless something still uses it.
         for old in replaced { deleteImageFile(old) }
-    }
-
-    private func contentKey(_ item: ClipItem) -> String {
-        switch item.type {
-        case .image: return "img:" + (item.imageHash ?? item.imageFileName ?? item.id.uuidString)
-        case .color: return "col:" + (item.colorHex ?? "")
-        case .file:  return "file:" + item.fileURLs.joined(separator: "|")
-        default:     return "txt:" + (item.text ?? "")
-        }
     }
 
     private func insertSortedByDate(_ item: ClipItem, into items: inout [ClipItem]) {

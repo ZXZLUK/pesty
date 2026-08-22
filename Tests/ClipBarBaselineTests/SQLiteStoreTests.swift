@@ -232,3 +232,38 @@ import Foundation
         #expect(payload.text?.count == full.count)
     }
 }
+
+@Suite struct SQLiteStoreHygieneTests {
+
+    private func makeTempDir() -> URL {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("clipbar-tests-\(UUID().uuidString)", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }
+
+    @Test func orphanBlobSweepOnlyRemovesUnreferenced() throws {
+        let dir = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        guard let store = SQLiteStore(directory: dir) else {
+            Issue.record("init failed"); return
+        }
+        let big = String(repeating: "z", count: 200_000)
+        let item = ClipItem(type: .text, text: big)
+        #expect(store.flush(history: [item], pinboards: [],
+                            dirtyContainers: ["history"], deletedBlobIDs: []))
+        let blobsDir = dir.appendingPathComponent("blobs")
+        // 伪造一个孤儿 blob（模拟崩溃残留）。
+        try Data("ghost".utf8).write(to: blobsDir.appendingPathComponent("GHOST.txt"))
+        #expect(try FileManager.default.contentsOfDirectory(atPath: blobsDir.path).count == 2)
+
+        let removed = store.deleteUnreferencedBlobs()
+        #expect(removed == 1)
+        let remaining = try FileManager.default.contentsOfDirectory(atPath: blobsDir.path)
+        #expect(remaining.count == 1)
+        #expect(remaining.first != "GHOST.txt")
+        // 被引用的 blob 完好。
+        let snap = SQLiteStore(directory: dir)?.load()
+        #expect(snap?.history.first?.text == big)
+    }
+}

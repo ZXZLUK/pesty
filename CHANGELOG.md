@@ -1,3 +1,8 @@
+# ClipBar Changelog
+
+> 以下为上游 Pesty 的历史记录。ClipBar 自 `70fd6b2` 分叉，分叉后的变更见
+> 上方各提交与 PR #2。原始记录自下方开始。
+
 # Changelog
 
 All notable changes to Pesty are documented here. The format is based on

@@ -116,18 +116,22 @@ struct ClipItem: Identifiable, Codable, Equatable {
             .lowercased()
     }
 
-    func sameContent(as other: ClipItem) -> Bool {
-        guard type == other.type else { return false }
+    /// Single canonical content identity (KNOWN_ISSUES KI-007). Every dedupe,
+    /// merge, and duplicate-removal path must agree on ONE function.
+    /// Plain text and links with the same string are the SAME content (the
+    /// link/text classification is presentation, not identity); rich text is
+    /// distinct because dropping its RTF payload would degrade the clip.
+    var contentKey: String {
         switch type {
-        case .image:
-            if let h = imageHash, let oh = other.imageHash { return h == oh }
-            return imageFileName == other.imageFileName
-        case .color:
-            return colorHex == other.colorHex
-        case .file:
-            return fileURLs == other.fileURLs
-        default:
-            return text == other.text
+        case .image:     return "img:" + (imageHash ?? imageFileName ?? id.uuidString)
+        case .color:     return "col:" + (colorHex ?? "")
+        case .file:      return "file:" + fileURLs.joined(separator: "|")
+        case .richText:  return "rtf:" + (text ?? "") + (rtfData != nil ? "+rtf" : "")
+        case .text, .link: return "txt:" + (text ?? "")
         }
+    }
+
+    func sameContent(as other: ClipItem) -> Bool {
+        contentKey == other.contentKey
     }
 }

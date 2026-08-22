@@ -50,7 +50,7 @@ extension Date {
 
     var clipRelativeLong: String {
         let secs = -timeIntervalSinceNow
-        if secs < 8 { return "Just now" }
+        if secs < 8 { return L10n.t("Just now", "刚刚") }
         let f = RelativeDateTimeFormatter()
         f.unitsStyle = .full
         return f.localizedString(for: self, relativeTo: Date())

@@ -20,10 +20,28 @@ import Carbon.HIToolbox
         #expect(!a.sameContent(as: c))
     }
 
-    @Test func sameContentRequiresEqualType() {
+    @Test func sameContentTextAndLinkAreOneIdentity() {
+        // KI-007 修复后的冻结语义：纯文本与链接只是展示分类，同一字符串即同一内容。
         let text = ClipItem(type: .text, text: "https://example.com")
         let link = ClipItem(type: .link, text: "https://example.com")
-        #expect(!text.sameContent(as: link))
+        #expect(text.sameContent(as: link))
+        #expect(text.contentKey == link.contentKey)
+    }
+
+    @Test func sameContentRichTextIsDistinctFromPlain() {
+        // 富文本保留 RTF 载荷，与同字符串纯文本是不同内容。
+        let rich = ClipItem(type: .richText, text: "hi", rtfData: Data([1]))
+        let plain = ClipItem(type: .text, text: "hi")
+        #expect(!rich.sameContent(as: plain))
+    }
+
+    @Test func contentKeyIsSingleSourceOfTruth() {
+        let a = ClipItem(type: .text, text: "x")
+        let b = ClipItem(type: .text, text: "x")
+        #expect(a.contentKey == b.contentKey)
+        let img1 = ClipItem(type: .image, imageHash: "h1")
+        let img2 = ClipItem(type: .image, imageHash: "h2")
+        #expect(img1.contentKey != img2.contentKey)
     }
 
     @Test func sameContentImageUsesHashWhenPresent() {

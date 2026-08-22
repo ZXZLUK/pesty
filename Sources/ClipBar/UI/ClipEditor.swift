@@ -416,10 +416,14 @@ private final class TextClipEditorController: NSObject, NSTextViewDelegate, NSWi
         let characters = text.count
         let words = text.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count
         let lines = text.isEmpty ? 0 : text.components(separatedBy: .newlines).count
-        let characterStat = "\(characters) \(countLabel(characters, singular: "character"))"
-        let wordStat = "\(words) \(countLabel(words, singular: "word"))"
-        let lineStat = "\(lines) \(countLabel(lines, singular: "line"))"
-        statsLabel.stringValue = [characterStat, wordStat, lineStat].joined(separator: "  ·  ")
+        if L10n.isChinese {
+            statsLabel.stringValue = "\(characters) 字符  ·  \(words) 词  ·  \(lines) 行"
+        } else {
+            let characterStat = "\(characters) \(countLabel(characters, singular: "character"))"
+            let wordStat = "\(words) \(countLabel(words, singular: "word"))"
+            let lineStat = "\(lines) \(countLabel(lines, singular: "line"))"
+            statsLabel.stringValue = [characterStat, wordStat, lineStat].joined(separator: "  ·  ")
+        }
         saveButton.isEnabled = !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 

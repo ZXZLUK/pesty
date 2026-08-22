@@ -314,6 +314,31 @@ final class SQLiteStore {
         return (text, rtf)
     }
 
+    /// Blob files referenced by any row (text_path/rtf_path).
+    func referencedBlobFiles() -> Set<String> {
+        var refs = Set<String>()
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, "SELECT text_path FROM clips WHERE text_path IS NOT NULL UNION SELECT rtf_path FROM clips WHERE rtf_path IS NOT NULL", -1, &stmt, nil) == SQLITE_OK else { return refs }
+        defer { sqlite3_finalize(stmt) }
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            refs.insert(String(cString: sqlite3_column_text(stmt, 0)))
+        }
+        return refs
+    }
+
+    /// Removes blob files no row points at (crash between blob write and
+    /// COMMIT leaves those behind). Returns the number of files removed.
+    func deleteUnreferencedBlobs() -> Int {
+        let refs = referencedBlobFiles()
+        guard let files = try? FileManager.default.contentsOfDirectory(atPath: blobsDir.path) else { return 0 }
+        var removed = 0
+        for name in files where !refs.contains(name) {
+            try? FileManager.default.removeItem(at: blobsDir.appendingPathComponent(name))
+            removed += 1
+        }
+        return removed
+    }
+
     /// Online consistent snapshot via VACUUM INTO (no lock on live reads).
     func backup(to url: URL) -> Bool {
         let escaped = url.path.replacingOccurrences(of: "'", with: "''")
