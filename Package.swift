@@ -14,6 +14,11 @@ let package = Package(
             swiftSettings: [
                 .unsafeFlags(["-parse-as-library"])
             ]
+        ),
+        .testTarget(
+            name: "PestyBaselineTests",
+            dependencies: ["Pesty"],
+            path: "Tests/PestyBaselineTests"
         )
     ],
     swiftLanguageModes: [.v5]
