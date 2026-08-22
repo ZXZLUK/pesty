@@ -1,0 +1,129 @@
+import AppKit
+import Carbon.HIToolbox
+
+@MainActor
+enum PasteService {
+    private static let sourceType = NSPasteboard.PasteboardType("org.nspasteboard.source")
+    private static let packagedBundleID = "com.zxzluk.clipbar"
+
+    private static func markSource(of item: ClipItem, on pasteboard: NSPasteboard) {
+        let source = item.sourceBundleID ?? Bundle.main.bundleIdentifier ?? packagedBundleID
+        pasteboard.setString(source, forType: sourceType)
+    }
+
+    /// Returns the pasteboard change count on success, nil on failure (the
+    /// pasteboard is left untouched so a failed paste cannot inject whatever
+    /// was on it before — KNOWN_ISSUES KI-004).
+    @discardableResult
+    static func copy(_ item: ClipItem,
+                     asPlainText: Bool = false,
+                     to pasteboard: NSPasteboard = .general) -> Int? {
+        let fullText = ClipboardStore.shared.fullText(for: item)
+        let fullRTF = ClipboardStore.shared.fullRTF(for: item)
+        if asPlainText, let text = (item.type == .file ? item.plainText : fullText) ?? item.plainText {
+            pasteboard.clearContents()
+            pasteboard.setString(text, forType: .string)
+            markSource(of: item, on: pasteboard)
+            return pasteboard.changeCount
+        }
+        if item.type == .image {
+            guard let img = ClipboardStore.shared.loadImage(for: item) else {
+                return nil
+            }
+            pasteboard.clearContents()
+            pasteboard.writeObjects([img])
+            markSource(of: item, on: pasteboard)
+            return pasteboard.changeCount
+        }
+        pasteboard.clearContents()
+        switch item.type {
+        case .image:
+            break
+        case .file:
+            let urls = item.fileURLs.compactMap { URL(string: $0) }
+            if !urls.isEmpty { pasteboard.writeObjects(urls as [NSURL]) }
+            if let t = item.text { pasteboard.setString(t, forType: .string) }
+        case .color:
+            if let hex = item.colorHex, let c = NSColor(hex: hex) {
+                pasteboard.writeObjects([c])
+                pasteboard.setString(hex, forType: .string)
+            }
+        case .richText:
+            if let rtf = fullRTF { pasteboard.setData(rtf, forType: .rtf) }
+            if let t = fullText { pasteboard.setString(t, forType: .string) }
+        case .text, .link:
+            if let t = fullText { pasteboard.setString(t, forType: .string) }
+        }
+        markSource(of: item, on: pasteboard)
+        return pasteboard.changeCount
+    }
+
+    static func paste(_ item: ClipItem,
+                      into targetApp: NSRunningApplication?,
+                      monitor: ClipboardMonitor,
+                      asPlainText: Bool = false) {
+        guard let change = copy(item, asPlainText: asPlainText) else { return }
+        monitor.suppressUntilChangeCount = change
+
+        guard let target = targetApp, !target.isTerminated else { return }
+
+        #if MAS
+        // Mac App Store (sandboxed) build: copy the clip and return focus to the
+        // app the user came from so they can paste with ⌘V. No Accessibility
+        // APIs and no synthetic keystrokes are used.
+        target.activate()
+        #else
+        // Direct-download build: optionally paste straight into the active app by
+        // synthesizing ⌘V. This requires the user's Accessibility grant.
+        guard Settings.shared.pasteDirectly && AXIsProcessTrusted() else { return }
+        target.activate()
+        // KNOWN_ISSUES KI-010: waiting for the target to become frontmost can
+        // fail (slow launch, focus refusal). The user must hear the difference
+        // between "pasted" and "clipboard armed but nothing injected" — a beep
+        // on timeout instead of silence.
+        waitForFrontmost(target, attempts: 20) { frontmost in
+            if frontmost {
+                if Settings.shared.playSound { NSSound(named: "Pop")?.play() }
+            } else {
+                NSSound.beep()
+                NSLog("ClipBar: paste target never became frontmost; clip copied but not injected")
+            }
+        }
+        #endif
+    }
+
+    #if !MAS
+    private static func waitForFrontmost(_ app: NSRunningApplication, attempts: Int,
+                                         completion: @escaping (Bool) -> Void) {
+        guard attempts > 0, !app.isTerminated else { completion(false); return }
+        if NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
+                sendCommandV()
+                completion(true)
+            }
+            return
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
+            waitForFrontmost(app, attempts: attempts - 1, completion: completion)
+        }
+    }
+
+    private static func sendCommandV() {
+        let src = CGEventSource(stateID: .combinedSessionState)
+        let v = CGKeyCode(kVK_ANSI_V)
+        guard let down = CGEvent(keyboardEventSource: src, virtualKey: v, keyDown: true),
+              let up = CGEvent(keyboardEventSource: src, virtualKey: v, keyDown: false) else { return }
+        down.flags = .maskCommand
+        up.flags = .maskCommand
+        down.post(tap: .cghidEventTap)
+        up.post(tap: .cghidEventTap)
+    }
+
+    @discardableResult
+    static func ensureAccessibility(prompt: Bool) -> Bool {
+        let key = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
+        let opts = [key: prompt] as CFDictionary
+        return AXIsProcessTrustedWithOptions(opts)
+    }
+    #endif
+}

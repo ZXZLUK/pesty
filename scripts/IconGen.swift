@@ -1,60 +1,53 @@
 import AppKit
 
+// ClipBar icon: a bottom-up color strip sliding out of a dark rounded plate —
+// the app's own slide-up bar motif. Original artwork for the ClipBar rename.
 let size = 1024.0
 let img = NSImage(size: NSSize(width: size, height: size))
 img.lockFocus()
 guard let ctx = NSGraphicsContext.current?.cgContext else { exit(1) }
-
-let margin = size * 0.085
-let rect = CGRect(x: margin, y: margin, width: size - margin*2, height: size - margin*2)
-let corner = (size - margin*2) * 0.225
-let bgPath = NSBezierPath(roundedRect: rect, xRadius: corner, yRadius: corner)
-
-ctx.saveGState()
-bgPath.addClip()
-let colors = [NSColor(srgbRed: 0.36, green: 0.42, blue: 1.0, alpha: 1).cgColor,
-              NSColor(srgbRed: 0.54, green: 0.36, blue: 1.0, alpha: 1).cgColor] as CFArray
-let grad = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: [0, 1])!
-ctx.drawLinearGradient(grad, start: CGPoint(x: rect.minX, y: rect.maxY),
-                       end: CGPoint(x: rect.maxX, y: rect.minY), options: [])
-ctx.restoreGState()
 
 func rounded(_ r: CGRect, _ rad: CGFloat, _ color: NSColor) {
     color.setFill()
     NSBezierPath(roundedRect: r, xRadius: rad, yRadius: rad).fill()
 }
 
-let boardW = size * 0.46
-let boardH = size * 0.54
-let boardX = (size - boardW) / 2
-let boardY = (size - boardH) / 2 - size * 0.01
-let boardRect = CGRect(x: boardX, y: boardY, width: boardW, height: boardH)
+// Background plate: deep teal-to-blue vertical gradient.
+let margin = size * 0.085
+let plate = CGRect(x: margin, y: margin, width: size - margin * 2, height: size - margin * 2)
+let corner = (size - margin * 2) * 0.225
 ctx.saveGState()
-ctx.setShadow(offset: CGSize(width: 0, height: -size*0.012), blur: size*0.03,
-              color: NSColor.black.withAlphaComponent(0.22).cgColor)
-rounded(boardRect, size*0.045, NSColor.white)
+NSBezierPath(roundedRect: plate, xRadius: corner, yRadius: corner).addClip()
+let colors = [NSColor(srgbRed: 0.05, green: 0.32, blue: 0.38, alpha: 1).cgColor,
+              NSColor(srgbRed: 0.10, green: 0.46, blue: 0.62, alpha: 1).cgColor] as CFArray
+let grad = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: [0, 1])!
+ctx.drawLinearGradient(grad, start: CGPoint(x: plate.midX, y: plate.maxY),
+                       end: CGPoint(x: plate.midX, y: plate.minY), options: [])
 ctx.restoreGState()
 
-let clipW = boardW * 0.42
-let clipH = size * 0.085
-let clipRect = CGRect(x: (size - clipW)/2, y: boardY + boardH - clipH*0.55,
-                      width: clipW, height: clipH)
-rounded(clipRect, clipH*0.34, NSColor(srgbRed: 0.82, green: 0.85, blue: 0.92, alpha: 1))
-let clipInner = clipRect.insetBy(dx: clipW*0.16, dy: clipH*0.26)
-rounded(clipInner, clipInner.height*0.4, NSColor(srgbRed: 0.36, green: 0.42, blue: 1.0, alpha: 1))
-
-let barColors = [NSColor(srgbRed: 0.39, green: 0.55, blue: 0.98, alpha: 1),
-                 NSColor(srgbRed: 0.20, green: 0.74, blue: 0.62, alpha: 1),
-                 NSColor(srgbRed: 0.96, green: 0.62, blue: 0.26, alpha: 1)]
-let barH = size * 0.052
-let barGap = size * 0.045
-let barX = boardX + boardW*0.16
-let barFull = boardW * 0.68
-let widths = [barFull, barFull*0.78, barFull*0.55]
-var by = boardY + boardH*0.62
-for (i, c) in barColors.enumerated() {
-    rounded(CGRect(x: barX, y: by, width: widths[i], height: barH), barH*0.5, c)
-    by -= (barH + barGap)
+// Three cards rising from the bottom edge, newest tallest, each a different hue.
+let cardColors: [NSColor] = [
+    NSColor(srgbRed: 0.98, green: 0.75, blue: 0.18, alpha: 1),
+    NSColor(srgbRed: 0.94, green: 0.96, blue: 0.98, alpha: 1),
+    NSColor(srgbRed: 0.55, green: 0.90, blue: 0.78, alpha: 1),
+]
+let cardHeights: [CGFloat] = [0.58, 0.44, 0.32]
+let cardW = plate.width * 0.24
+let gap = plate.width * 0.045
+let totalW = cardW * 3 + gap * 2
+var cx = plate.midX - totalW / 2
+for (i, c) in cardColors.enumerated() {
+    let h = plate.height * cardHeights[i]
+    let r = CGRect(x: cx, y: plate.minY - size * 0.02, width: cardW, height: h)
+    ctx.saveGState()
+    ctx.setShadow(offset: CGSize(width: 0, height: size * 0.015), blur: size * 0.035,
+                  color: NSColor.black.withAlphaComponent(0.28).cgColor)
+    rounded(r, size * 0.04, c)
+    ctx.restoreGState()
+    // Header band on each card, like the app's color-coded card headers.
+    rounded(CGRect(x: r.minX, y: r.maxY - h * 0.18, width: r.width, height: h * 0.18),
+            size * 0.02, c.withAlphaComponent(0.75))
+    cx += cardW + gap
 }
 
 img.unlockFocus()

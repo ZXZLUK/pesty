@@ -5,12 +5,12 @@
 *.xcuserstate
 DerivedData/
 
-packaging/Pesty.app/
+packaging/ClipBar.app/
 packaging/*.dmg
 packaging/*.zip
 packaging/*.icns
 packaging/icon_1024.png
-packaging/Pesty.iconset/
+packaging/ClipBar.iconset/
 
 *.log
 
