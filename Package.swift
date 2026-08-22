@@ -2,23 +2,23 @@
 import PackageDescription
 
 let package = Package(
-    name: "Pesty",
+    name: "ClipBar",
     platforms: [.macOS(.v14)],
     products: [
-        .executable(name: "Pesty", targets: ["Pesty"])
+        .executable(name: "ClipBar", targets: ["ClipBar"])
     ],
     targets: [
         .executableTarget(
-            name: "Pesty",
-            path: "Sources/Pesty",
+            name: "ClipBar",
+            path: "Sources/ClipBar",
             swiftSettings: [
                 .unsafeFlags(["-parse-as-library"])
             ]
         ),
         .testTarget(
-            name: "PestyBaselineTests",
-            dependencies: ["Pesty"],
-            path: "Tests/PestyBaselineTests"
+            name: "ClipBarBaselineTests",
+            dependencies: ["ClipBar"],
+            path: "Tests/ClipBarBaselineTests"
         )
     ],
     swiftLanguageModes: [.v5]

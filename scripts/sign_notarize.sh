@@ -3,9 +3,9 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 VERSION="${VERSION:-1.0.0}"
-APP="packaging/Pesty.app"
-DMG="packaging/Pesty-$VERSION.dmg"
-ENTITLEMENTS="packaging/Pesty.entitlements"
+APP="packaging/ClipBar.app"
+DMG="packaging/ClipBar-$VERSION.dmg"
+ENTITLEMENTS="packaging/ClipBar.entitlements"
 
 SIGN_IDENTITY="${SIGN_IDENTITY:-Developer ID Application: Moamen Basel (H3WXHVTP97)}"
 ASC_KEY="${ASC_KEY:-$HOME/.appstoreconnect/private_keys/AuthKey_5G7R52L8RK.p8}"
@@ -26,7 +26,7 @@ codesign --force --options runtime --timestamp \
 codesign --verify --strict --verbose=2 "$APP"
 
 echo "==> Notarizing app"
-ZIP="packaging/Pesty.zip"
+ZIP="packaging/ClipBar.zip"
 rm -f "$ZIP"
 /usr/bin/ditto -c -k --keepParent "$APP" "$ZIP"
 xcrun notarytool submit "$ZIP" \
@@ -38,9 +38,9 @@ rm -f "$ZIP"
 echo "==> Building DMG"
 rm -f "$DMG"
 STAGE="$(mktemp -d)"
-cp -R "$APP" "$STAGE/Pesty.app"
+cp -R "$APP" "$STAGE/ClipBar.app"
 ln -s /Applications "$STAGE/Applications"
-hdiutil create -volname "Pesty" -srcfolder "$STAGE" -ov -format UDZO "$DMG"
+hdiutil create -volname "ClipBar" -srcfolder "$STAGE" -ov -format UDZO "$DMG"
 rm -rf "$STAGE"
 
 echo "==> Signing + notarizing DMG"
