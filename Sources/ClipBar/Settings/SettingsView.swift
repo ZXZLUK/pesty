@@ -165,6 +165,7 @@ private struct GeneralSettings: View {
                     Slider(value: $settings.barHeight, in: 300...720, step: 10)
                 }
                 Toggle(L10n.t("Slide in from the top of the screen", "从屏幕顶部滑出"), isOn: $settings.showFromTop)
+                Toggle(L10n.t("Touch the top edge of the screen to summon", "鼠标碰屏幕顶边唤出"), isOn: $settings.hotEdgeEnabled)
                 #if MAS
                 Text(L10n.t("Select a clip to copy it, then press ⌘V to paste it into your app.",
                             "选择一条内容完成复制，然后按 ⌘V 粘贴到你的应用里。"))

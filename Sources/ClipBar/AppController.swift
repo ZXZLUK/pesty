@@ -30,6 +30,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     let store = ClipboardStore.shared
     let monitor = ClipboardMonitor()
+    private let hotEdge = HotEdgeController()
 
     private var barController: BarWindowController?
     private var statusItem: NSStatusItem?
@@ -90,6 +91,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
         HotKeyCenter.shared.start()
 
         setMenuBarIconVisible(Settings.shared.showMenuBarIcon)
+        hotEdge.setEnabled(Settings.shared.hotEdgeEnabled)
 
         if Settings.shared.launchAtLogin { LaunchAtLogin.set(enabled: true) }
 
@@ -328,6 +330,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
         barController?.forceHide()
         stopKeyMonitor()
         HotKeyCenter.shared.reload()
+        hotEdge.rebuild()
     }
 
     /// Docking, undocking, and resolution changes can leave the bar sized for a screen
@@ -340,6 +343,15 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
     @objc private func screenParametersChanged() {
         barController?.forceHide()
         stopKeyMonitor()
+        hotEdge.rebuild()
+    }
+
+    func setHotEdgeEnabled(_ enabled: Bool) {
+        hotEdge.setEnabled(enabled)
+    }
+
+    var barIsPresented: Bool {
+        barController?.isPresented ?? false
     }
 
     func showBar() {

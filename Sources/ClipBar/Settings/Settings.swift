@@ -100,6 +100,7 @@ final class Settings {
         static let ignoredSourceAppBundleIDs = "ignoredSourceAppBundleIDs"
         static let barHeight = "barHeight"
         static let showFromTop = "showFromTop"
+        static let hotEdgeEnabled = "hotEdgeEnabled"
         static let showMenuBarIcon = "showMenuBarIcon"
         static let onboarded = "onboarded"
         static let iCloudSync = "iCloudSync"
@@ -204,6 +205,16 @@ final class Settings {
         didSet { guard isLoaded else { return }; d.set(showFromTop, forKey: Keys.showFromTop) }
     }
 
+    /// Park the cursor on the screen's topmost line to summon the bar
+    /// (invisible hot-edge strips, 0.25s dwell).
+    var hotEdgeEnabled: Bool {
+        didSet {
+            guard isLoaded else { return }
+            d.set(hotEdgeEnabled, forKey: Keys.hotEdgeEnabled)
+            AppController.shared.setHotEdgeEnabled(hotEdgeEnabled)
+        }
+    }
+
     var showMenuBarIcon: Bool {
         didSet {
             guard isLoaded else { return }
@@ -242,6 +253,7 @@ final class Settings {
             Keys.ignoredSourceAppBundleIDs: [],
             Keys.barHeight: 430.0,
             Keys.showFromTop: true,
+            Keys.hotEdgeEnabled: true,
             Keys.showMenuBarIcon: true,
             Keys.onboarded: false,
             Keys.iCloudSync: false,
@@ -282,6 +294,7 @@ final class Settings {
         }
         barHeight = d.double(forKey: Keys.barHeight)
         showFromTop = d.bool(forKey: Keys.showFromTop)
+        hotEdgeEnabled = d.bool(forKey: Keys.hotEdgeEnabled)
         showMenuBarIcon = d.bool(forKey: Keys.showMenuBarIcon)
         onboarded = d.bool(forKey: Keys.onboarded)
         iCloudSync = d.bool(forKey: Keys.iCloudSync)
