@@ -36,6 +36,11 @@ final class BarWindowController: NSWindowController, NSWindowDelegate {
     /// Direction the bar most recently slid in from. hide() reuses it so a mid-flight
     /// settings change cannot make the exit slide the wrong way through the panel.
     private var dockedFromTop = false
+    /// Global mouse-down watcher installed while the bar is up. Dismissal is defined
+    /// as an actual click landing outside the panel — never as "the panel lost key":
+    /// agent-style frontmost apps re-assert focus on their own timers, and treating
+    /// that as an outside click made the bar vanish while the user was still moving
+    /// the mouse toward it.
 
     /// True while the bar is up or on its way up. `AppController.toggleBar` asks this
     /// instead of `window.isVisible`.
@@ -48,6 +53,31 @@ final class BarWindowController: NSWindowController, NSWindowDelegate {
 
     private static let showDuration: TimeInterval = 0.22
     private static let hideDuration: TimeInterval = 0.16
+
+    private var outsideClickMonitor: Any?
+
+    /// Watches for real clicks in other apps while the bar is up. Events for our own
+    /// panels never reach a global monitor, so clicks inside the bar (cards, chrome,
+    /// blank areas) cannot fire it; only a mouse-down on some other app's window or
+    /// the desktop does, and only when it lands outside the panel frame.
+    private func startOutsideClickMonitor() {
+        guard Settings.shared.hideOnClickOutside, outsideClickMonitor == nil else { return }
+        outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(
+            matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]
+        ) { [weak self] _ in
+            guard let self, let panel = self.window, panel.isVisible else { return }
+            if !panel.frame.contains(NSEvent.mouseLocation) {
+                AppController.shared.hideBar()
+            }
+        }
+    }
+
+    private func stopOutsideClickMonitor() {
+        if let monitor = outsideClickMonitor {
+            NSEvent.removeMonitor(monitor)
+            outsideClickMonitor = nil
+        }
+    }
 
     private static var contentBottomExtension: CGFloat {
         if #available(macOS 26.0, *) { return Theme.cornerRadius }
@@ -180,13 +210,6 @@ final class BarWindowController: NSWindowController, NSWindowDelegate {
             guard let self else { return }
             self.settle(token) {
                 self.phase = .shown
-                // The panel can lose key focus while it is still animating up, and
-                // windowDidResignKey ignores that because the bar is not .shown yet.
-                // Catch it here so the bar does not sit on screen unfocused forever.
-                if Settings.shared.hideOnClickOutside,
-                   panel.isVisible, !panel.isKeyWindow, !AppController.shared.suppressAutoHide {
-                    AppController.shared.hideBar()
-                }
             }
         }
         NSAnimationContext.runAnimationGroup({ ctx in
@@ -196,12 +219,14 @@ final class BarWindowController: NSWindowController, NSWindowDelegate {
                                               width: onScreen.width, height: contentHeight)
         }, completionHandler: { DispatchQueue.main.async(execute: finish) })
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.showDuration + 0.05, execute: finish)
+        startOutsideClickMonitor()
     }
 
     func hide() {
         guard let panel = window, let content = panel.contentView else { return }
         guard isPresented else { return }
 
+        stopOutsideClickMonitor()
         let token = beginTransition()
         phase = .hiding(token)
         let exit = NSRect(x: 0,
@@ -229,13 +254,7 @@ final class BarWindowController: NSWindowController, NSWindowDelegate {
     func forceHide() {
         _ = beginTransition()
         phase = .hidden
+        stopOutsideClickMonitor()
         window?.orderOut(nil)
-    }
-
-    func windowDidResignKey(_ notification: Notification) {
-        guard Settings.shared.hideOnClickOutside,
-              phase == .shown,
-              !AppController.shared.suppressAutoHide else { return }
-        AppController.shared.hideBar()
     }
 }
