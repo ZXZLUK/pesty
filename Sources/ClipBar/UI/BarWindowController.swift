@@ -51,8 +51,9 @@ final class BarWindowController: NSWindowController, NSWindowDelegate {
         }
     }
 
-    private static let showDuration: TimeInterval = 0.22
-    private static let hideDuration: TimeInterval = 0.16
+    /// Short as possible while still reading as a slide, not a flash.
+    private static let showDuration: TimeInterval = 0.12
+    private static let hideDuration: TimeInterval = 0.12
 
     private var outsideClickMonitor: Any?
 
