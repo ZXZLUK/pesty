@@ -16,6 +16,8 @@ struct BarView: View {
         }
         .clipShape(RoundedCorners(radius: Theme.cornerRadius, corners: [.topLeft, .topRight]))
         .ignoresSafeArea()
+        // Any tap not consumed by a card or chrome control lands here: dismiss.
+        .onTapGesture { AppController.shared.hideBar() }
     }
 
     @ViewBuilder
