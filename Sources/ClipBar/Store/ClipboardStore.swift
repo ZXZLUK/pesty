@@ -226,7 +226,9 @@ final class ClipboardStore {
     }
 
     func addCaptured(_ item: ClipItem) {
-        if let idx = history.firstIndex(where: { $0.sameContent(as: item) }) {
+        var index = dedupIndex ?? rebuildDedupIndex()
+        if let existingID = index[item.contentKey],
+           let idx = history.firstIndex(where: { $0.id == existingID }) {
             if item.imageFileName != history[idx].imageFileName { deleteImageFile(item) }
             var existing = history.remove(at: idx)
             existing.createdAt = item.createdAt
@@ -238,6 +240,8 @@ final class ClipboardStore {
             scheduleSave()
             return
         }
+        index[item.contentKey] = item.id
+        dedupIndex = index
         history.insert(item, at: 0)
         trimHistory()
         if source == .history && searchText.isEmpty && multiSelectedIDs.isEmpty {
@@ -245,6 +249,22 @@ final class ClipboardStore {
             selectionAnchorID = item.id
         }
         scheduleSave()
+    }
+
+    /// O(1) capture dedup: contentKey -> id of the surviving history item.
+    /// Captures keep it valid incrementally (a promotion reuses the same key;
+    /// an insert adds one entry); every other history mutation dirties it via
+    /// `dedupIndex = nil` and the next capture rebuilds it — those paths are
+    /// user-initiated and rare next to captures.
+    private var dedupIndex: [String: UUID]?
+
+    private func rebuildDedupIndex() -> [String: UUID] {
+        var index: [String: UUID] = [:]
+        for item in history where index[item.contentKey] == nil {
+            index[item.contentKey] = item.id
+        }
+        dedupIndex = index
+        return index
     }
 
     func applyRetentionPolicy() { trimHistory(); scheduleSave() }
@@ -290,7 +310,10 @@ final class ClipboardStore {
             }
         }
         guard !removed.isEmpty else { return }
-        for item in removed { deleteImageFile(item) }
+        for item in removed {
+            dedupIndex?.removeValue(forKey: item.contentKey)
+            deleteImageFile(item)
+        }
         markRetentionPruned(removed)
         if let sel = selectedID, removed.contains(where: { $0.id == sel }) { selectFirst() }
         reconcileMultiSelection()
@@ -326,6 +349,7 @@ final class ClipboardStore {
         case .history:
             removed = history.filter { ids.contains($0.id) }
             history.removeAll { ids.contains($0.id) }
+            dedupIndex = nil
         case .pinboard(let boardID):
             guard let boardIndex = pinboards.firstIndex(where: { $0.id == boardID }) else { return }
             removed = pinboards[boardIndex].items.filter { ids.contains($0.id) }
@@ -386,6 +410,7 @@ final class ClipboardStore {
         for rec in recs.reversed() {
             if rec.container == "history" {
                 history.insert(rec.item, at: min(rec.index, history.count))
+                dedupIndex = nil
             } else if let id = UUID(uuidString: rec.container),
                       let board = pinboards.firstIndex(where: { $0.id == id }) {
                 pinboards[board].items.insert(rec.item, at: min(rec.index, pinboards[board].items.count))
@@ -400,6 +425,7 @@ final class ClipboardStore {
     func clearHistory() {
         let old = history
         history.removeAll()
+        dedupIndex = nil
         selectedID = nil
         for item in old { deleteImageFile(item) }
         reconcileMultiSelection()
@@ -507,6 +533,7 @@ final class ClipboardStore {
                 history.remove(at: i)
                 removeContentDuplicates(of: updated, in: &history)
                 history.insert(updated, at: 0)
+                dedupIndex = nil
                 changed = true
             }
         }
@@ -852,6 +879,7 @@ final class ClipboardStore {
         let set = Set(ids)
         let removedHistory = history.filter { set.contains($0.id) }
         history.removeAll { set.contains($0.id) }
+        dedupIndex = nil
         var removedPinned: [ClipItem] = []
         for i in pinboards.indices {
             removedPinned += pinboards[i].items.filter { set.contains($0.id) }
@@ -885,6 +913,7 @@ final class ClipboardStore {
     private func applyRemoteToHistory(_ item: ClipItem) {
         let replaced = history.filter { $0.id == item.id }
         history.removeAll { $0.id == item.id }
+        dedupIndex = nil
         let key = item.contentKey
         if let dupIdx = history.firstIndex(where: { $0.contentKey == key }) {
             let dup = history[dupIdx]
@@ -911,6 +940,7 @@ final class ClipboardStore {
         // Legacy shared-id records: a pinboard clip also evicts the same id from history.
         var replaced = history.filter { $0.id == item.id }
         history.removeAll { $0.id == item.id }
+        dedupIndex = nil
         replaced += pinboards[i].items.filter { $0.id == item.id }
         pinboards[i].items.removeAll { $0.id == item.id }
         let key = item.contentKey

@@ -82,8 +82,6 @@ struct PinboardTabs: View {
 @MainActor
 enum TextPrompt {
     static func run(title: String, message: String, defaultValue: String = "") -> String? {
-        AppController.shared.suppressAutoHide = true
-        defer { AppController.shared.suppressAutoHide = false }
         let alert = NSAlert()
         alert.messageText = title
         alert.informativeText = message

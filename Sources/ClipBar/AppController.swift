@@ -44,7 +44,6 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private(set) var previousApp: NSRunningApplication?
     private(set) var lastActiveApp: NSRunningApplication?
 
-    var suppressAutoHide = false
 
     /// When the search query last became empty via the keyboard. A bare
     /// Backspace deletes the selected clip, and the keystroke that clears the
@@ -422,8 +421,6 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     func editItem(_ item: ClipItem, launchWritingTools: Bool = false) {
-        suppressAutoHide = true
-        defer { suppressAutoHide = false }
 
         // Editors need the whole payload even when memory keeps only a preview.
         var full = item
@@ -454,8 +451,6 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     func showPreview(for item: ClipItem) {
-        suppressAutoHide = true
-        defer { suppressAutoHide = false }
         NSApp.activate(ignoringOtherApps: true)
 
         let host = NSHostingController(rootView: ClipPreviewView(item: item))
@@ -485,8 +480,6 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let items = shareItems(for: item)
         guard !items.isEmpty,
               let view = barController?.window?.contentView ?? NSApp.keyWindow?.contentView else { return }
-        suppressAutoHide = true
-        defer { suppressAutoHide = false }
         let picker = NSSharingServicePicker(items: items)
         let anchor = NSRect(x: view.bounds.midX, y: view.bounds.midY, width: 1, height: 1)
         picker.show(relativeTo: anchor, of: view, preferredEdge: .maxY)
@@ -512,8 +505,6 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
             store.delete(targets[0])
             return
         }
-        suppressAutoHide = true
-        defer { suppressAutoHide = false }
         let alert = NSAlert()
         alert.messageText = L10n.t("Delete \(targets.count) Clips?", "删除 \(targets.count) 条？")
         #if MAS
