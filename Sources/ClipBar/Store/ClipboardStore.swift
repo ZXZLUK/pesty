@@ -630,7 +630,10 @@ final class ClipboardStore {
 
     func prepareForBarPresentation() {
         typeFilter = nil
-        applyRetentionPolicy()
+        // Retention trimming deliberately does NOT run here: it scans the whole
+        // history (unbounded in time mode) and schedules a save, all inside the
+        // hotkey → visible path. It runs at launch, on a 6h timer, and when
+        // retention settings change instead.
         clearMultiSelection()
         barPresentationToken &+= 1
         selectFirst()
@@ -664,7 +667,12 @@ final class ClipboardStore {
 
     /// Files are named by content SHA-256, so identical screenshots stored in
     /// history and pinboards share one file instead of duplicating on disk.
-    func storeImageData(_ data: Data) -> String? {
+    /// Directory image payloads are written to. Read on the main actor, then
+    /// passed by value into the capture queue.
+    var imagesDirectory: URL { imagesDir }
+
+    /// Hash-named atomic write, safe to call off the main actor (capture queue).
+    nonisolated static func writeImageFile(_ data: Data, into imagesDir: URL) -> String? {
         let digest = CryptoKit.SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
         let name = "\(digest).png"
         let url = imagesDir.appendingPathComponent(name)
@@ -674,6 +682,10 @@ final class ClipboardStore {
             try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
             return name
         } catch { return nil }
+    }
+
+    func storeImageData(_ data: Data) -> String? {
+        Self.writeImageFile(data, into: imagesDir)
     }
 
     private func deleteImageFile(_ item: ClipItem) {

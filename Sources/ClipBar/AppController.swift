@@ -38,6 +38,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var previewWindow: NSWindow?
     private var previewedItemID: UUID?
     private var keyMonitor: Any?
+    private var retentionTimer: Timer?
 
     private(set) var previousApp: NSRunningApplication?
     private(set) var lastActiveApp: NSRunningApplication?
@@ -68,6 +69,22 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         monitor.start()
         store.applyRetentionPolicy()
+        // Retention lives at launch, on this timer, and in retention-settings commit —
+        // never inside the hotkey → visible path (see prepareForBarPresentation).
+        retentionTimer = Timer.scheduledTimer(withTimeInterval: 6 * 3600, repeats: true) { _ in
+            Task { @MainActor in ClipboardStore.shared.applyRetentionPolicy() }
+        }
+
+        // Prewarm the panel and the first screen of app icons so the FIRST hotkey
+        // press is as fast as every later one — the bar used to be built lazily on
+        // first summon, which made that summon visibly slower.
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            if barController == nil { barController = BarWindowController() }
+            for item in store.visibleItems.prefix(8) {
+                AppIconProvider.icon(forBundleID: item.sourceBundleID)
+            }
+        }
 
         HotKeyCenter.shared.onTrigger = { [weak self] in self?.toggleBar() }
         HotKeyCenter.shared.start()
