@@ -164,6 +164,7 @@ private struct GeneralSettings: View {
                     LabeledContent(L10n.t("Bar height", "卡片条高度"), value: "\(Int(settings.barHeight)) px")
                     Slider(value: $settings.barHeight, in: 300...720, step: 10)
                 }
+                Toggle(L10n.t("Slide in from the top of the screen", "从屏幕顶部滑出"), isOn: $settings.showFromTop)
                 #if MAS
                 Text(L10n.t("Select a clip to copy it, then press ⌘V to paste it into your app.",
                             "选择一条内容完成复制，然后按 ⌘V 粘贴到你的应用里。"))

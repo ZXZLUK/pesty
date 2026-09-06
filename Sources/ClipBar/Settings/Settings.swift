@@ -99,6 +99,7 @@ final class Settings {
         static let ignoreConcealed = "ignoreConcealed"
         static let ignoredSourceAppBundleIDs = "ignoredSourceAppBundleIDs"
         static let barHeight = "barHeight"
+        static let showFromTop = "showFromTop"
         static let showMenuBarIcon = "showMenuBarIcon"
         static let onboarded = "onboarded"
         static let iCloudSync = "iCloudSync"
@@ -197,6 +198,12 @@ final class Settings {
         }
     }
 
+    /// Dock the bar to the top edge of the screen and slide it down on show.
+    /// false keeps the original bottom-edge, slide-up behaviour.
+    var showFromTop: Bool {
+        didSet { guard isLoaded else { return }; d.set(showFromTop, forKey: Keys.showFromTop) }
+    }
+
     var showMenuBarIcon: Bool {
         didSet {
             guard isLoaded else { return }
@@ -234,6 +241,7 @@ final class Settings {
             Keys.ignoreConcealed: true,
             Keys.ignoredSourceAppBundleIDs: [],
             Keys.barHeight: 430.0,
+            Keys.showFromTop: true,
             Keys.showMenuBarIcon: true,
             Keys.onboarded: false,
             Keys.iCloudSync: false,
@@ -273,6 +281,7 @@ final class Settings {
                 .filter { !$0.isEmpty }
         }
         barHeight = d.double(forKey: Keys.barHeight)
+        showFromTop = d.bool(forKey: Keys.showFromTop)
         showMenuBarIcon = d.bool(forKey: Keys.showMenuBarIcon)
         onboarded = d.bool(forKey: Keys.onboarded)
         iCloudSync = d.bool(forKey: Keys.iCloudSync)

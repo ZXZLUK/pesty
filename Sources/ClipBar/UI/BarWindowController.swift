@@ -33,6 +33,9 @@ final class BarWindowController: NSWindowController, NSWindowDelegate {
 
     private var phase: Phase = .hidden
     private var epoch = 0
+    /// Direction the bar most recently slid in from. hide() reuses it so a mid-flight
+    /// settings change cannot make the exit slide the wrong way through the panel.
+    private var dockedFromTop = false
 
     /// True while the bar is up or on its way up. `AppController.toggleBar` asks this
     /// instead of `window.isVisible`.
@@ -146,20 +149,25 @@ final class BarWindowController: NSWindowController, NSWindowDelegate {
         panel.level = Settings.shared.hideOnClickOutside ? .modalPanel : .floating
         let vf = screen.visibleFrame
         let height = min(CGFloat(Settings.shared.barHeight), vf.height)
-        let onScreen = NSRect(x: vf.minX, y: vf.minY, width: vf.width, height: height)
+        let fromTop = Settings.shared.showFromTop
+        dockedFromTop = fromTop
+        let onScreen = NSRect(x: vf.minX,
+                              y: fromTop ? vf.maxY - height : vf.minY,
+                              width: vf.width, height: height)
 
-        // The panel stays parked at its final frame and the content slides up *inside*
-        // it. Animating the window frame itself is not safe on multi-display setups:
-        // the old staging rect (vf.minY - height) is only genuinely off-screen when
-        // nothing sits below the target display. With displays stacked vertically it
-        // lands on the neighbouring screen, so the bar appeared there in full and then
-        // flew across the bezel. A view clipped to the window can never escape it.
+        // The panel stays parked at its final frame and the content slides in *inside*
+        // it (up from the bottom edge, or down from the top edge). Animating the window
+        // frame itself is not safe on multi-display setups: the old staging rect
+        // (vf.minY - height) is only genuinely off-screen when nothing sits below the
+        // target display. With displays stacked vertically it lands on the neighbouring
+        // screen, so the bar appeared there in full and then flew across the bezel.
+        // A view clipped to the window can never escape it.
         panel.setFrame(onScreen, display: false)
         guard let content = panel.contentView else { return }
         let bottomExtension = Self.contentBottomExtension
         let contentHeight = height + bottomExtension
         content.autoresizingMask = []
-        content.frame = NSRect(x: 0, y: -contentHeight,
+        content.frame = NSRect(x: 0, y: fromTop ? contentHeight : -contentHeight,
                                width: onScreen.width, height: contentHeight)
 
         let token = beginTransition()
@@ -184,7 +192,7 @@ final class BarWindowController: NSWindowController, NSWindowDelegate {
         NSAnimationContext.runAnimationGroup({ ctx in
             ctx.duration = Self.showDuration
             ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            content.animator().frame = NSRect(x: 0, y: -bottomExtension,
+            content.animator().frame = NSRect(x: 0, y: fromTop ? 0 : -bottomExtension,
                                               width: onScreen.width, height: contentHeight)
         }, completionHandler: { DispatchQueue.main.async(execute: finish) })
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.showDuration + 0.05, execute: finish)
@@ -196,7 +204,8 @@ final class BarWindowController: NSWindowController, NSWindowDelegate {
 
         let token = beginTransition()
         phase = .hiding(token)
-        let down = NSRect(x: 0, y: -content.frame.height,
+        let exit = NSRect(x: 0,
+                          y: dockedFromTop ? content.frame.height : -content.frame.height,
                           width: content.frame.width, height: content.frame.height)
 
         let finish: @MainActor @Sendable () -> Void = { [weak self] in
@@ -209,7 +218,7 @@ final class BarWindowController: NSWindowController, NSWindowDelegate {
         NSAnimationContext.runAnimationGroup({ ctx in
             ctx.duration = Self.hideDuration
             ctx.timingFunction = CAMediaTimingFunction(name: .easeIn)
-            content.animator().frame = down
+            content.animator().frame = exit
         }, completionHandler: { DispatchQueue.main.async(execute: finish) })
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.hideDuration + 0.05, execute: finish)
     }
