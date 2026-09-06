@@ -154,30 +154,46 @@ struct ClipCardView: View {
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(Theme.cardTextPrimary).lineLimit(1)
             }
-            HStack(spacing: 6) {
-                Text(metaLeft)
+            if item.type == .text || item.type == .richText {
+                // Bare centered count, no label; the quick-paste badge stays
+                // pinned to the trailing edge via overlay.
+                Text("\(item.charCount)")
                     .font(.system(size: 11))
                     .foregroundStyle(Theme.cardTextSecondary)
                     .lineLimit(1)
-                Spacer(minLength: 4)
-                if index < 9 {
-                    HStack(spacing: 3) {
-                        Text(settings.quickPasteModifierDisplay)
-                            .font(.system(size: 11, weight: .semibold))
-                        Text("\(index + 1)")
-                            .font(.system(size: 11, weight: .semibold))
-                    }
-                    .foregroundStyle(Theme.cardTextTertiary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .overlay(alignment: .trailing) { quickPasteBadge }
+            } else {
+                HStack(spacing: 6) {
+                    Text(metaLeft)
+                        .font(.system(size: 11))
+                        .foregroundStyle(Theme.cardTextSecondary)
+                        .lineLimit(1)
+                    Spacer(minLength: 4)
+                    quickPasteBadge
                 }
             }
         }
         .padding(.top, 8)
     }
 
+    @ViewBuilder
+    private var quickPasteBadge: some View {
+        if index < 9 {
+            HStack(spacing: 3) {
+                Text(settings.quickPasteModifierDisplay)
+                    .font(.system(size: 11, weight: .semibold))
+                Text("\(index + 1)")
+                    .font(.system(size: 11, weight: .semibold))
+            }
+            .foregroundStyle(Theme.cardTextTertiary)
+        }
+    }
+
     private var metaLeft: String {
         switch item.type {
         case .text, .richText:
-            return "\(item.charCount) characters"
+            return "\(item.charCount)"
         case .link:
             return (item.text ?? "").replacingOccurrences(of: "https://", with: "")
                                     .replacingOccurrences(of: "http://", with: "")
