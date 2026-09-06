@@ -66,10 +66,33 @@ final class BarWindowController: NSWindowController, NSWindowDelegate {
             matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]
         ) { [weak self] _ in
             guard let self, let panel = self.window, panel.isVisible else { return }
-            if !panel.frame.contains(NSEvent.mouseLocation) {
-                AppController.shared.hideBar()
-            }
+            let location = NSEvent.mouseLocation
+            guard !panel.frame.contains(location) else { return }
+            guard !Self.isOverOwnWindow(at: location) else { return }
+            AppController.shared.hideBar()
         }
+    }
+
+    /// True when `location` lands on an on-screen window owned by this app other than
+    /// the bar itself — menu popups, the settings window, previews. NSMenu tracking
+    /// consumes item clicks before normal dispatch, so clicks on our own menus still
+    /// arrive through this global monitor; without this check, selecting any menu
+    /// item (Settings…, Pin, context menus) dismissed the bar mid-click.
+    private nonisolated static func isOverOwnWindow(at location: NSPoint) -> Bool {
+        guard let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID)
+            as? [[String: Any]] else { return false }
+        let pid = ProcessInfo.processInfo.processIdentifier
+        // CGWindow bounds are top-left origin; NSEvent.mouseLocation is bottom-left.
+        let primaryHeight = NSScreen.screens.first?.frame.height ?? 0
+        let point = CGPoint(x: location.x, y: primaryHeight - location.y)
+        for info in list {
+            guard let owner = info[kCGWindowOwnerPID as String] as? Int, owner == pid,
+                  let bounds = info[kCGWindowBounds as String] as? [String: CGFloat] else { continue }
+            let frame = CGRect(x: bounds["X"] ?? 0, y: bounds["Y"] ?? 0,
+                               width: bounds["Width"] ?? 0, height: bounds["Height"] ?? 0)
+            if frame.contains(point) { return true }
+        }
+        return false
     }
 
     private func stopOutsideClickMonitor() {
