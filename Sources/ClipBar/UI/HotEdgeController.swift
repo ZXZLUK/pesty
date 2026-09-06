@@ -1,18 +1,19 @@
 import AppKit
 
-/// Invisible strips pinned to the top edge of every screen: touching the topmost
-/// line summons the bar instantly. The strips sit above the menu bar window
-/// level, so the absolute top line fires even while over the menu bar. There is
-/// no dwell delay — the owner accepted fly-through triggers in exchange for
-/// zero latency; one-shot arming still keeps the bar from flapping while the
-/// cursor parks on the edge.
+/// Invisible strips pinned to the top edge of every screen: resting the cursor
+/// on the topmost line for 0.2s summons the bar. The strips sit above the menu
+/// bar window level, so the absolute top line fires even while over the menu
+/// bar. The dwell filters fly-throughs toward menu items; one-shot arming keeps
+/// the bar from flapping while the cursor parks on the edge.
 @MainActor
 final class HotEdgeController {
     static let shared = HotEdgeController()
 
     private static let stripThickness: CGFloat = 4
+    private static let dwellTime: TimeInterval = 0.2
 
     private var strips: [NSPanel] = []
+    private var dwellTimer: Timer?
     /// One-shot arming: the edge cannot re-trigger until the cursor leaves it, so
     /// parking at the top never flaps the bar while it is already up, and a
     /// dismiss with the cursor still parked does not instantly re-show.
@@ -42,6 +43,8 @@ final class HotEdgeController {
     }
 
     private func teardown() {
+        dwellTimer?.invalidate()
+        dwellTimer = nil
         for strip in strips { strip.orderOut(nil) }
         strips.removeAll()
         armed = true
@@ -49,12 +52,23 @@ final class HotEdgeController {
 
     fileprivate func handleEnter() {
         guard armed, !AppController.shared.barIsPresented else { return }
-        armed = false
-        AppController.shared.showBar()
+        let timer = Timer(timeInterval: Self.dwellTime, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated { self?.fire() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        dwellTimer = timer
     }
 
     fileprivate func handleExit() {
+        dwellTimer?.invalidate()
+        dwellTimer = nil
         armed = true
+    }
+
+    private func fire() {
+        guard armed, !AppController.shared.barIsPresented else { return }
+        armed = false
+        AppController.shared.showBar()
     }
 }
 
