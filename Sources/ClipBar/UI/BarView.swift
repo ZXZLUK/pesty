@@ -39,6 +39,8 @@ struct BarView: View {
             if settings.iCloudSync { syncButton }
             #endif
             typeFilterMenu
+            quickFilter(.image)
+            quickFilter(.file)
             if let hint = store.deletionHint {
                 Text(hint)
                     .font(.system(size: 11, weight: .medium))
@@ -81,11 +83,34 @@ struct BarView: View {
                 .font(.system(size: 15, weight: .medium))
                 .foregroundStyle(store.typeFilter == nil ? Theme.chromeTextSecondary : Theme.selection)
         }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .fixedSize()
-        .help(L10n.t("Filter by type (⌘⇧T cycles)", "按类型过滤（⌘⇧T 循环切换）"))
+    .menuStyle(.borderlessButton)
+    .menuIndicator(.hidden)
+    .fixedSize()
+    .help(L10n.t("Filter by type (⌘⇧T cycles)", "按类型过滤（⌘⇧T 循环切换）"))
+}
+
+/// Dedicated one-tap filters for the two types reached for most; every other
+/// type stays in the funnel menu. Tap toggles — typeFilter is a single value,
+/// so picking one pill clears the other.
+private func quickFilter(_ type: ClipType) -> some View {
+    let active = store.typeFilter == type
+    return Button {
+        store.typeFilter = store.typeFilter == type ? nil : type
+    } label: {
+        HStack(spacing: 5) {
+            Image(systemName: type.symbol)
+                .font(.system(size: 12, weight: .medium))
+            Text(type.label)
+                .font(.system(size: 12, weight: .medium))
+        }
+        .foregroundStyle(active ? Theme.selection : Theme.chromeTextSecondary)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 5)
+        .background(Theme.selection.opacity(active ? 0.16 : 0), in: Capsule())
     }
+    .buttonStyle(.plain)
+    .help(L10n.t("Show only \(type.label)", "只看\(type.label)"))
+}
 
     private var syncButton: some View {
         Button {
