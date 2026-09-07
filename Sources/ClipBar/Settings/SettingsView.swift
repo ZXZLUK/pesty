@@ -143,6 +143,7 @@ private struct GeneralSettings: View {
 
             Section(L10n.t("Behavior", "行为")) {
                 Toggle(L10n.t("Paste directly into the active app", "直接粘贴到当前应用"), isOn: $settings.pasteDirectly)
+                Toggle(L10n.t("Auto-focus the input box of the target app", "粘贴时自动定位目标应用的输入框"), isOn: $settings.smartFocusInput)
                 Toggle(L10n.t("Ignore passwords (concealed clips)", "忽略密码（隐藏类型的复制）"), isOn: $settings.ignoreConcealed)
                 Toggle(L10n.t("Play sound on paste", "粘贴时播放音效"), isOn: $settings.playSound)
                 Picker(L10n.t("Sound when copying", "复制捕获时提示音"), selection: $settings.captureSound) {

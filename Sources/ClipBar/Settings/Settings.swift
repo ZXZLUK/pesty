@@ -102,6 +102,7 @@ final class Settings {
         static let showFromTop = "showFromTop"
         static let hotEdgeEnabled = "hotEdgeEnabled"
         static let lowerHalfDismiss = "lowerHalfDismiss"
+        static let smartFocusInput = "smartFocusInput"
         static let showMenuBarIcon = "showMenuBarIcon"
         static let onboarded = "onboarded"
         static let barHeightSlimmed = "barHeightSlimmed"
@@ -221,6 +222,13 @@ final class Settings {
         didSet { guard isLoaded else { return }; d.set(lowerHalfDismiss, forKey: Keys.lowerHalfDismiss) }
     }
 
+    /// On paste, locate the target app's text input via Accessibility and focus
+    /// it before injecting ⌘V — the prompt box gets the text even if focus was
+    /// elsewhere in that app.
+    var smartFocusInput: Bool {
+        didSet { guard isLoaded else { return }; d.set(smartFocusInput, forKey: Keys.smartFocusInput) }
+    }
+
     var showMenuBarIcon: Bool {
         didSet {
             guard isLoaded else { return }
@@ -253,6 +261,7 @@ final class Settings {
             Keys.showFromTop: true,
             Keys.hotEdgeEnabled: true,
             Keys.lowerHalfDismiss: true,
+            Keys.smartFocusInput: true,
             Keys.showMenuBarIcon: true,
             Keys.onboarded: false
         ])
@@ -300,6 +309,7 @@ final class Settings {
         showFromTop = d.bool(forKey: Keys.showFromTop)
         hotEdgeEnabled = d.bool(forKey: Keys.hotEdgeEnabled)
         lowerHalfDismiss = d.bool(forKey: Keys.lowerHalfDismiss)
+        smartFocusInput = d.bool(forKey: Keys.smartFocusInput)
         showMenuBarIcon = d.bool(forKey: Keys.showMenuBarIcon)
         onboarded = d.bool(forKey: Keys.onboarded)
         isLoaded = true

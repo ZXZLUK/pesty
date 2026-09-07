@@ -75,7 +75,7 @@ enum PasteService {
         // fail (slow launch, focus refusal). The user must hear the difference
         // between "pasted" and "clipboard armed but nothing injected" — a beep
         // on timeout instead of silence.
-        waitForFrontmost(target, attempts: 20) { frontmost in
+        waitForFrontmost(target, attempts: 20, smartFocus: Settings.shared.smartFocusInput) { frontmost in
             if frontmost {
                 if Settings.shared.playSound { NSSound(named: "Pop")?.play() }
             } else {
@@ -86,17 +86,21 @@ enum PasteService {
     }
 
     private static func waitForFrontmost(_ app: NSRunningApplication, attempts: Int,
+                                         smartFocus: Bool,
                                          completion: @escaping (Bool) -> Void) {
         guard attempts > 0, !app.isTerminated else { completion(false); return }
         if NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
+                if smartFocus {
+                    _ = SmartInput.focusInputBox(ofApp: app)
+                }
                 sendCommandV()
                 completion(true)
             }
             return
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
-            waitForFrontmost(app, attempts: attempts - 1, completion: completion)
+            waitForFrontmost(app, attempts: attempts - 1, smartFocus: smartFocus, completion: completion)
         }
     }
 
