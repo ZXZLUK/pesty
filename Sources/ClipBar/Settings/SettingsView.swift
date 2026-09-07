@@ -112,12 +112,10 @@ private struct PrivacySettings: View {
 
 private struct GeneralSettings: View {
     @Bindable private var settings = Settings.shared
-    #if !MAS
     @State private var accessibilityGranted = AXIsProcessTrusted()
     @State private var requestedGrant = false
 
     private let poll = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
-    #endif
 
     var body: some View {
         Form {
@@ -144,9 +142,7 @@ private struct GeneralSettings: View {
             }
 
             Section(L10n.t("Behavior", "行为")) {
-                #if !MAS
                 Toggle(L10n.t("Paste directly into the active app", "直接粘贴到当前应用"), isOn: $settings.pasteDirectly)
-                #endif
                 Toggle(L10n.t("Ignore passwords (concealed clips)", "忽略密码（隐藏类型的复制）"), isOn: $settings.ignoreConcealed)
                 Toggle(L10n.t("Play sound on paste", "粘贴时播放音效"), isOn: $settings.playSound)
                 Picker(L10n.t("Sound when copying", "复制捕获时提示音"), selection: $settings.captureSound) {
@@ -166,34 +162,9 @@ private struct GeneralSettings: View {
                 }
                 Toggle(L10n.t("Slide in from the top of the screen", "从屏幕顶部滑出"), isOn: $settings.showFromTop)
                 Toggle(L10n.t("Touch the top edge of the screen to summon", "鼠标碰屏幕顶边唤出"), isOn: $settings.hotEdgeEnabled)
-                #if MAS
-                Text(L10n.t("Select a clip to copy it, then press ⌘V to paste it into your app.",
-                            "选择一条内容完成复制，然后按 ⌘V 粘贴到你的应用里。"))
-                    .font(.caption).foregroundStyle(.secondary)
-                #endif
+                Toggle(L10n.t("Auto-dismiss when the mouse moves to the lower half", "鼠标移到屏幕下半部自动收起"), isOn: $settings.lowerHalfDismiss)
             }
 
-            #if MAS
-            Section(L10n.t("Sync", "同步")) {
-                Toggle(L10n.t("Sync history with iCloud", "通过 iCloud 同步历史"), isOn: Binding(
-                    get: { settings.cloudKitSync },
-                    set: { on in
-                        settings.cloudKitSync = on
-                        if on { CloudSyncService.shared.enable() } else { CloudSyncService.shared.stop() }
-                    }))
-                Text(CloudSyncService.shared.status)
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-            #else
-            Section(L10n.t("Sync", "同步")) {
-                Text(L10n.t("Multi-Mac sync is temporarily unavailable while storage moves to the new database. History stays on this Mac.",
-                            "多设备同步在存储迁移到新数据库期间暂不可用。历史数据只保存在本机。"))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            #endif
-
-            #if !MAS
             Section(L10n.t("Permissions", "权限")) {
                 HStack(spacing: 10) {
                     Image(systemName: accessibilityGranted ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
@@ -221,7 +192,6 @@ private struct GeneralSettings: View {
                     }
                 }
             }
-            #endif
 
             Section(L10n.t("Data", "数据")) {
                 let last = ClipboardStore.shared.lastBackupDate
@@ -247,22 +217,18 @@ private struct GeneralSettings: View {
             }
         }
         .formStyle(.grouped)
-        #if !MAS
         .onAppear { accessibilityGranted = AXIsProcessTrusted() }
         .onReceive(poll) { _ in
             let now = AXIsProcessTrusted()
             if now != accessibilityGranted { accessibilityGranted = now }
         }
-        #endif
     }
 
-    #if !MAS
     private func openAccessibilityPane() {
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
             NSWorkspace.shared.open(url)
         }
     }
-    #endif
 
     private func modifierPicker(selection: Binding<Int>) -> some View {
         Picker("", selection: selection) {
@@ -325,13 +291,8 @@ private struct HistoryRetentionSettings: View {
     }
 
     private var footnote: String {
-        #if MAS
-        L10n.t("Pruning tidies this Mac only — synced copies stay on your other devices. Pinned clips are never removed.",
-               "清理只影响本机——其他设备上的同步副本保留。Pin 住的内容永不被清除。")
-        #else
         L10n.t("Pruning applies to this Mac's history. Pinned clips are never removed.",
                "清理只影响本机历史。Pin 住的内容永不被清除。")
-        #endif
     }
 
     private func evaluateDraft() {

@@ -101,10 +101,10 @@ final class Settings {
         static let barHeight = "barHeight"
         static let showFromTop = "showFromTop"
         static let hotEdgeEnabled = "hotEdgeEnabled"
+        static let lowerHalfDismiss = "lowerHalfDismiss"
         static let showMenuBarIcon = "showMenuBarIcon"
         static let onboarded = "onboarded"
-        static let iCloudSync = "iCloudSync"
-        static let cloudKitSync = "cloudKitSync"
+        static let barHeightSlimmed = "barHeightSlimmed"
     }
 
     var historyLimit: Int {
@@ -215,6 +215,12 @@ final class Settings {
         }
     }
 
+    /// Moving the mouse into the screen's lower half while the bar is up
+    /// dismisses it ("I moved on") — the natural counterpart to the top-edge summon.
+    var lowerHalfDismiss: Bool {
+        didSet { guard isLoaded else { return }; d.set(lowerHalfDismiss, forKey: Keys.lowerHalfDismiss) }
+    }
+
     var showMenuBarIcon: Bool {
         didSet {
             guard isLoaded else { return }
@@ -225,14 +231,6 @@ final class Settings {
 
     var onboarded: Bool {
         didSet { guard isLoaded else { return }; d.set(onboarded, forKey: Keys.onboarded) }
-    }
-
-    var iCloudSync: Bool {
-        didSet { guard isLoaded else { return }; d.set(iCloudSync, forKey: Keys.iCloudSync) }
-    }
-
-    var cloudKitSync: Bool {
-        didSet { guard isLoaded else { return }; d.set(cloudKitSync, forKey: Keys.cloudKitSync) }
     }
 
     private init() {
@@ -251,13 +249,12 @@ final class Settings {
             Keys.captureSound: "Tink",
             Keys.ignoreConcealed: true,
             Keys.ignoredSourceAppBundleIDs: [],
-            Keys.barHeight: 430.0,
+            Keys.barHeight: 365.0,
             Keys.showFromTop: true,
             Keys.hotEdgeEnabled: true,
+            Keys.lowerHalfDismiss: true,
             Keys.showMenuBarIcon: true,
-            Keys.onboarded: false,
-            Keys.iCloudSync: false,
-            Keys.cloudKitSync: true
+            Keys.onboarded: false
         ])
         historyLimit = d.integer(forKey: Keys.historyLimit)
         historyRetentionMode = HistoryRetentionMode(rawValue: d.string(forKey: Keys.historyRetentionMode) ?? "")
@@ -292,13 +289,19 @@ final class Settings {
             ignoredSourceAppBundleIDs = (d.stringArray(forKey: Keys.ignoredSourceAppBundleIDs) ?? [])
                 .filter { !$0.isEmpty }
         }
+        // One-time slim-down (2026-09-07): tighter layout ships with a shorter
+        // bar. Applies once to whatever height is stored, then never again.
+        if !d.bool(forKey: Keys.barHeightSlimmed) {
+            let slimmed = min(720, max(300, d.double(forKey: Keys.barHeight) * 0.85))
+            d.set(slimmed, forKey: Keys.barHeight)
+            d.set(true, forKey: Keys.barHeightSlimmed)
+        }
         barHeight = d.double(forKey: Keys.barHeight)
         showFromTop = d.bool(forKey: Keys.showFromTop)
         hotEdgeEnabled = d.bool(forKey: Keys.hotEdgeEnabled)
+        lowerHalfDismiss = d.bool(forKey: Keys.lowerHalfDismiss)
         showMenuBarIcon = d.bool(forKey: Keys.showMenuBarIcon)
         onboarded = d.bool(forKey: Keys.onboarded)
-        iCloudSync = d.bool(forKey: Keys.iCloudSync)
-        cloudKitSync = d.bool(forKey: Keys.cloudKitSync)
         isLoaded = true
     }
 

@@ -1,10 +1,10 @@
 import SwiftUI
 
 enum Theme {
-    static let cardWidth: CGFloat = 215
-    static let cardSpacing: CGFloat = 28
+    static let cardWidth: CGFloat = 172
+    static let cardSpacing: CGFloat = 2
     static let cornerRadius: CGFloat = 16
-    static let cardCorner: CGFloat = 19
+    static let cardCorner: CGFloat = 9
     static let headerHeight: CGFloat = 68
 
     static let panelTint = Color.white.opacity(0.10)
@@ -14,7 +14,7 @@ enum Theme {
     static let selectedCardRing: CGFloat = 6
     // Leave 43 pt beyond the selected-card ring at either strip edge while
     // preserving the ScrollView's normal clipping behavior.
-    static let cardStripHorizontalPadding: CGFloat = selectedCardRing + 43
+    static let cardStripHorizontalPadding: CGFloat = selectedCardRing + 20
 
     static let chromeTextPrimary = Color.white.opacity(0.95)
     static let chromeTextSecondary = Color.white.opacity(0.55)
@@ -54,5 +54,25 @@ extension Date {
         let f = RelativeDateTimeFormatter()
         f.unitsStyle = .full
         return f.localizedString(for: self, relativeTo: Date())
+    }
+}
+
+extension ClipMark {
+    /// Card highlight colors: saturated enough to read as a marker over the
+    /// card body at ~0.3 opacity, in both light and dark appearance.
+    var uiColor: Color {
+        switch self {
+        case .red: return Color(red: 1.0, green: 0.32, blue: 0.28)
+        case .yellow: return Color(red: 1.0, green: 0.78, blue: 0.20)
+        case .blue: return Color(red: 0.30, green: 0.62, blue: 1.0)
+        }
+    }
+
+    var nsColor: NSColor {
+        switch self {
+        case .red: return NSColor(red: 1.0, green: 0.32, blue: 0.28, alpha: 1)
+        case .yellow: return NSColor(red: 1.0, green: 0.78, blue: 0.20, alpha: 1)
+        case .blue: return NSColor(red: 0.30, green: 0.62, blue: 1.0, alpha: 1)
+        }
     }
 }

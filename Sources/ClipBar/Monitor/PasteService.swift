@@ -67,13 +67,7 @@ enum PasteService {
 
         guard let target = targetApp, !target.isTerminated else { return }
 
-        #if MAS
-        // Mac App Store (sandboxed) build: copy the clip and return focus to the
-        // app the user came from so they can paste with ⌘V. No Accessibility
-        // APIs and no synthetic keystrokes are used.
-        target.activate()
-        #else
-        // Direct-download build: optionally paste straight into the active app by
+        // Direct-install build: optionally paste straight into the active app by
         // synthesizing ⌘V. This requires the user's Accessibility grant.
         guard Settings.shared.pasteDirectly && AXIsProcessTrusted() else { return }
         target.activate()
@@ -89,10 +83,8 @@ enum PasteService {
                 NSLog("ClipBar: paste target never became frontmost; clip copied but not injected")
             }
         }
-        #endif
     }
 
-    #if !MAS
     private static func waitForFrontmost(_ app: NSRunningApplication, attempts: Int,
                                          completion: @escaping (Bool) -> Void) {
         guard attempts > 0, !app.isTerminated else { completion(false); return }
@@ -125,5 +117,4 @@ enum PasteService {
         let opts = [key: prompt] as CFDictionary
         return AXIsProcessTrustedWithOptions(opts)
     }
-    #endif
 }

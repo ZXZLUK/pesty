@@ -30,14 +30,6 @@ struct BarView: View {
 
     private var topBar: some View {
         HStack(spacing: 14) {
-            // The two builds sync through different systems: the App Store build uses
-            // CloudKit, everything else uses iCloud Drive. Gate the button on whichever
-            // one this build actually drives.
-            #if MAS
-            if settings.cloudKitSync { syncButton }
-            #else
-            if settings.iCloudSync { syncButton }
-            #endif
             typeFilterMenu
             quickFilter(.image)
             quickFilter(.file)
@@ -111,18 +103,6 @@ private func quickFilter(_ type: ClipType) -> some View {
     .buttonStyle(.plain)
     .help(L10n.t("Show only \(type.label)", "只看\(type.label)"))
 }
-
-    private var syncButton: some View {
-        Button {
-            AppController.shared.toggleICloudSync()
-        } label: {
-            Image(systemName: settings.iCloudSync ? "checkmark.icloud.fill" : "arrow.triangle.2.circlepath")
-                .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(settings.iCloudSync ? Theme.selection : Theme.chromeTextSecondary)
-        }
-        .buttonStyle(.plain)
-        .help(settings.iCloudSync ? "iCloud sync on" : "Turn on iCloud sync")
-    }
 
     private var searchIndicator: some View {
         HStack(spacing: 6) {
@@ -204,8 +184,8 @@ private func quickFilter(_ type: ClipType) -> some View {
                     }
                 }
                 .padding(.horizontal, Theme.cardStripHorizontalPadding)
-                .padding(.top, 16)
-                .padding(.bottom, 26)
+                .padding(.top, 10)
+                .padding(.bottom, 12)
                 .animation(.spring(response: 0.34, dampingFraction: 0.8), value: store.visibleItems.count)
                 .id(Self.stripStartID)
             }

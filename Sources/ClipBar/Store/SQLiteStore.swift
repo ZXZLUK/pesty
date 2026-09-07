@@ -61,8 +61,9 @@ final class SQLiteStore {
             quarantine(reason: "schema init failed: \(String(cString: sqlite3_errmsg(db)))")
             return nil
         }
-        // Pre-existing databases gain the column added after v0.3.0.
+        // Pre-existing databases gain columns added after v0.3.0.
         _ = exec("ALTER TABLE clips ADD COLUMN text_truncated INTEGER NOT NULL DEFAULT 0;")
+        _ = exec("ALTER TABLE clips ADD COLUMN mark_color TEXT;")
         try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: dbURL.path)
     }
 
@@ -112,7 +113,7 @@ final class SQLiteStore {
         guard sqlite3_prepare_v2(db, """
             SELECT id, container, type, text_truncated, text_value, text_path, rtf_blob, rtf_path,
                    image_file, image_hash, file_urls, color_hex,
-                   source_bundle, source_name, title, created_at
+                   source_bundle, source_name, title, created_at, mark_color
             FROM clips ORDER BY container, position
             """, -1, &stmt, nil) == SQLITE_OK else {
             return Snapshot(history: [], pinboards: [])
@@ -144,7 +145,8 @@ final class SQLiteStore {
                 sourceAppName: optText(13),
                 customTitle: optText(14),
                 createdAt: Date(timeIntervalSince1970: sqlite3_column_double(stmt, 15)),
-                textTruncated: truncated)
+                textTruncated: truncated,
+                markColor: optText(16))
             if container == "history" {
                 history.append(item)
             } else if let board = boardsByID[container] {
@@ -221,8 +223,8 @@ final class SQLiteStore {
             INSERT OR REPLACE INTO clips(id, container, position, type, text_truncated, text_value,
                                          text_path, rtf_blob, rtf_path, image_file, image_hash,
                                          file_urls, color_hex, source_bundle, source_name, title,
-                                         created_at)
-            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                                         created_at, mark_color)
+            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """, -1, &stmt, nil) == SQLITE_OK else { return false }
         defer { sqlite3_finalize(stmt) }
 
@@ -282,6 +284,8 @@ final class SQLiteStore {
             if let v = item.customTitle { sqlite3_bind_text(stmt, 16, v, -1, SQLITE_TRANSIENT) }
             else { sqlite3_bind_null(stmt, 16) }
             sqlite3_bind_double(stmt, 17, item.createdAt.timeIntervalSince1970)
+            if let v = item.markColor { sqlite3_bind_text(stmt, 18, v, -1, SQLITE_TRANSIENT) }
+            else { sqlite3_bind_null(stmt, 18) }
 
             guard sqlite3_step(stmt) == SQLITE_DONE else { return false }
             sqlite3_reset(stmt)

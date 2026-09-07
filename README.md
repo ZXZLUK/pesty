@@ -1,76 +1,74 @@
-# ClipBar
+# ClipBar · 本地私人剪贴板管理器
 
-**macOS 原生剪贴板历史管理器** —— 按 `⌘⇧V` 从屏幕底部唤出卡片条，打字即搜索，回车直接粘贴进当前应用。
+**macOS 原生 · 碰一下屏幕顶边，剪贴板历史立刻铺满眼前。**
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-![macOS 14+](https://img.shields.io/badge/macOS-14%2B-black)
-![Zero Dependencies](https://img.shields.io/badge/dependencies-0-green)
+> 私人自用项目：完全本地运行——无账号、无登录、无遥测、无分析、无任何网络请求。
 
-> ClipBar is a native macOS clipboard history manager. It is an actively
-> developed fork of the MIT-licensed
-> [pesty](https://github.com/momenbasel/pesty) by Moamen Basel — deep thanks to
-> the upstream project. All original copyright preserved under MIT.
+**极简** · **零消耗** · **智能** · **快速** · **高效** · **轻量**
 
-## 特性
+---
 
-- **卡片条界面**：全宽底部滑出，按来源 App 着色的卡片头，⌘1–9 快速粘贴
-- **全类型**：文本、富文本、链接、图片、文件、颜色
-- **无限历史**：无条数上限，按时间自动清理（如每周），Pinboard 永久保存
-- **搜索**：打字即搜；`⌘⇧T` 按类型过滤（文本/链接/图片…）
-- **直接粘贴**：回车即注入前台应用（需辅助功能授权，未授权自动降级为复制）
-- **复制提示音**：14 种系统音效可选、低音量、可试听
-- **Pinboard**：常用内容收藏到命名面板，永不清理
-- **隐私**：数据全部本机；自动忽略密码管理器的隐藏复制；可按 App 排除；
-  无遥测、无分析、无网络上传（iCloud 多设备同步在重新设计中，当前版本不启用）
+## 六个特点
 
-## 存储与可靠性
+### 极简
+零第三方依赖，只用系统框架；无菜单栏图标依赖、无登录、无设置向导。
+全部交互压缩成几个手势：**碰顶边唤出、单击粘贴、鼠标下移收起**，不看文档也会用。
 
-- SQLite（WAL）单库存储，>128KB 的大文本/富文本自动外置为独立文件
-- 内存只保留大条目的预览，粘贴时按需读取全文——复制多大都不卡
-- 数据库损坏自动隔离（保留现场）并重建；每日自动备份，滚动保留 7 份
-- 启动时清扫崩溃残留的孤儿文件
+### 零消耗
+空闲 CPU **0.0%**；待机真实内存约 **58MB**（框架底座之外几乎为零）。
+剪贴板监听只是读一个计数器；收起面板 2 秒后自动清空解码图片缓存——待机不随使用量累积。
 
-## 构建
+### 智能
+**拼音搜索**（全拼/声母/多音字，"粘贴板"用 `ztb` 就能搜到）；自动识别文本/富文本/链接/图片/文件/颜色六种类型并按来源应用着色；密码管理器复制自动排除；多显示器下面板跟随鼠标所在屏幕。
 
-需要 macOS 14+ 与 Xcode 16+（Swift 6 工具链），零第三方依赖。
+### 快速
+碰一下屏幕最顶边，**零停留、零动画**，面板立即出现；**单击卡片立即粘贴**并自动收起；新内容 **0.2 秒**内进入历史；打字即搜。所有延迟都压到物理极限。
 
-```bash
-git clone https://github.com/ZXZLUK/pesty.git
-cd pesty
-swift test                          # 34 个测试
-swift run                           # 直接运行
-VERSION=0.1.0 BUILD=1 ./scripts/build_app.sh   # 组装 .app（通用二进制）
-open packaging/ClipBar.app
-```
+### 高效
+一屏 **12+ 张卡片**密排呈现；悬停卡片浮现**红/黄/蓝**标注圆点，重点一眼锁定；顶栏**图片/文件**一键过滤；`⌘1`–`⌘9` 快速粘贴；Pinboard 收藏常用内容；鼠标下穿屏幕中线即自动收起——唤出和放弃都是零按键。
 
-首次粘贴会请求**辅助功能**授权（系统设置 → 隐私与安全性 → 辅助功能 → 开启 ClipBar），随后重启一次 ClipBar 生效。
+### 轻量
+约 6000 行 Swift，单一小体积 App；大文本/富文本自动外置存储，内存只留预览，粘贴多大都不卡；SQLite（WAL）单库 + 每日自动备份滚动保留 7 份，损坏自动隔离重建。
 
-## 快捷键
+---
 
-| 键 | 动作 |
+## 手势与快捷键
+
+| 操作 | 效果 |
 | --- | --- |
-| `⌘⇧V` | 呼出 / 收起卡片条（可自定义） |
-| `return` | 粘贴选中项到前台应用 |
+| 碰屏幕最顶边 / `⌘⇧V` | 召唤 / 收起面板 |
+| 单击卡片 | 立即粘贴到当前应用 |
+| 鼠标移到屏幕下半部 | 自动收起 |
+| 点击面板外 | 收起 |
+| 悬停卡片 → 红黄蓝圆点 | 标注重点（再点同色清除） |
 | `⌘1`–`⌘9` | 快速粘贴第 N 张 |
 | `⇧⌘1`–`⇧⌘9` | 以纯文本粘贴第 N 张 |
-| 打字 | 搜索 |
+| 打字 | 搜索（支持拼音） |
+| 顶栏 漏斗 / 图片 / 文件 | 类型过滤 |
 | `⌘⇧T` | 循环类型过滤 |
+| 空格 | 预览选中项 |
 | `⌘⇧S` / `⌘⇧P` | 设置 / 暂停捕获 |
-| `esc` | 清搜索 → 关卡片条 |
+| `esc` | 清搜索 → 关面板 |
 
-## 与上游 pesty 的关系
+## 隐私与数据
 
-基于上游 `70fd6b2` 冻结基线开发。主要差异：SQLite 存储后端、无上限保留策略、
-内存懒加载、身份函数统一、热键状态机修复、粘贴事务化、全中文界面、复制提示音。
-冻结审计文档见 [BASELINE.md](BASELINE.md)、[ARCHITECTURE.md](ARCHITECTURE.md)、
-[RISKS.md](RISKS.md)、[TESTING.md](TESTING.md)。
+- 数据**全部留在本机**：无账号体系、无同步、无上传、无崩溃上报
+- 自动排除 1Password / Bitwarden / KeePassXC 等密码管理器的复制内容
+- 可按来源应用排除；隐藏/临时类型（密码、敏感项）自动跳过
+- 存储：`~/Library/Application Support/ClipBar/`（SQLite + 图片/大对象外置文件）
 
-## 已知限制
+## 构建与版本管理
 
-- 多设备 iCloud 同步停用中（删除一致性问题重新设计前不启用，见 RISKS.md）
-- Mac App Store 沙盒构建路径未维护（需自有开发者证书）
-- 睡眠唤醒 / 多显示器路径未自动化测试
+macOS 14+ / Xcode 16+（Swift 6 工具链），零第三方依赖。
 
-## License
+```bash
+swift test                                    # 40 个基线测试
+VERSION=0.6.0 BUILD=localNN bash scripts/build_app.sh
+bash scripts/smoke_noninteractive.sh          # 包完整性冒烟
+# 产物: packaging/ClipBar.app → 拷贝到 /Applications
+```
 
-[MIT](LICENSE) © 2026 Moamen Basel（上游）+ ClipBar 贡献者。
+本项目为**本地私人版本管理**：git 提交仅存在于本机，**不推送任何远端**。
+
+> 基于上游 [momenbasel/pesty](https://github.com/momenbasel/pesty)（MIT）深度改造，
+> 原始版权声明见 [LICENSE](LICENSE)。架构与设计文档：[ARCHITECTURE.md](ARCHITECTURE.md)。

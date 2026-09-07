@@ -30,10 +30,13 @@ struct ClipCardView: View {
         }
         .overlay(
             RoundedRectangle(cornerRadius: Theme.cardCorner, style: .continuous)
-                .strokeBorder(selected ? Theme.selection : Theme.cardBorder,
-                              lineWidth: selected ? 1.5 : 1)
+                .strokeBorder(selected ? Theme.selection : (markColor ?? Theme.cardBorder),
+                              lineWidth: selected ? 1.5 : (markColor != nil ? 1.5 : 1))
         )
-        .shadow(color: .black.opacity(0.18), radius: 5, y: 2)
+        .shadow(color: .black.opacity(0.14), radius: 2, y: 1)
+        .overlay(alignment: .topTrailing) {
+            if hovering { hoverMarkDots }
+        }
         .scaleEffect(hovering && !selected ? 1.015 : 1.0)
         .zIndex(selected ? 1 : 0)
         .animation(.spring(response: 0.32, dampingFraction: 0.72), value: selected)
@@ -45,6 +48,34 @@ struct ClipCardView: View {
         .highPriorityGesture(TapGesture().modifiers(.command).onEnded { store.toggleSelection(item.id) })
         .onDrag { ClipDragProvider.make(for: item) }
         .contextMenu { menu }
+    }
+
+    /// Hover-revealed inline marks: three colored dots at the card's top-right.
+    /// One click marks; clicking the active color clears it (white ring shows
+    /// which is active). Faster than the context menu — no right-click needed.
+    private var hoverMarkDots: some View {
+        HStack(spacing: 5) {
+            ForEach(ClipMark.allCases, id: \.self) { mark in
+                Button {
+                    store.setMark(item.markColor == mark.rawValue ? nil : mark.rawValue, for: item.id)
+                } label: {
+                    Circle()
+                        .fill(mark.uiColor)
+                        .frame(width: 11, height: 11)
+                        .overlay {
+                            if item.markColor == mark.rawValue {
+                                Circle().strokeBorder(.white.opacity(0.95), lineWidth: 1.5)
+                            }
+                        }
+                }
+                .buttonStyle(.plain)
+                .help(L10n.t("Mark as \\(mark.label)", "标为\\(mark.label)"))
+            }
+        }
+        .padding(.horizontal, 7)
+        .padding(.vertical, 5)
+        .background(.thinMaterial, in: Capsule())
+        .padding(6)
     }
 
     private var header: some View {
@@ -76,13 +107,17 @@ struct ClipCardView: View {
                 RoundedRectangle(cornerRadius: 15, style: .continuous)
                     .strokeBorder(Color.white.opacity(0.14))
             )
-            .frame(width: 56, height: 56)
+            .frame(width: 46, height: 46)
             .overlay(
                 Image(nsImage: AppIconProvider.icon(forBundleID: item.sourceBundleID))
                     .resizable()
                     .interpolation(.high)
-                    .frame(width: 48, height: 48)
+                    .frame(width: 40, height: 40)
             )
+    }
+
+    private var markColor: Color? {
+        ClipMark(raw: item.markColor)?.uiColor
     }
 
     private var body_: some View {
@@ -95,7 +130,12 @@ struct ClipCardView: View {
         .padding(.top, 11)
         .padding(.bottom, 10)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Theme.cardBody)
+        .background {
+            ZStack {
+                Theme.cardBody
+                if let markColor { markColor.opacity(0.30) }
+            }
+        }
     }
 
     @ViewBuilder
@@ -155,13 +195,13 @@ struct ClipCardView: View {
                     .foregroundStyle(Theme.cardTextPrimary).lineLimit(1)
             }
             if item.type == .text || item.type == .richText {
-                // Bare centered count, no label; the quick-paste badge stays
+                // Bare count, left-aligned; the quick-paste badge stays
                 // pinned to the trailing edge via overlay.
                 Text("\(item.charCount)")
                     .font(.system(size: 11))
                     .foregroundStyle(Theme.cardTextSecondary)
                     .lineLimit(1)
-                    .frame(maxWidth: .infinity, alignment: .center)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .overlay(alignment: .trailing) { quickPasteBadge }
             } else {
                 HStack(spacing: 6) {
@@ -221,6 +261,19 @@ struct ClipCardView: View {
             Label(L10n.t("Copy", "拷贝"), systemImage: "doc.on.doc")
         }
 
+        // Highlight marks: three colored dots at the top of the menu — one click
+        // applies, clicking the active mark clears (ring icon shows which is
+        // active). No submenu; NSMenu renders SF Symbol colors unreliably, so
+        // the dots are hand-drawn non-template NSImages.
+        ForEach(ClipMark.allCases, id: \.self) { mark in
+            Button {
+                store.setMark(item.markColor == mark.rawValue ? nil : mark.rawValue, for: item.id)
+            } label: {
+                Image(nsImage: Self.markDotIcon(mark.nsColor, active: item.markColor == mark.rawValue))
+            }
+            .accessibilityLabel(L10n.t("Mark \(mark.label)", "标注为\(mark.label)"))
+        }
+
         Divider()
 
         Button { AppController.shared.editItem(item) } label: {
@@ -270,10 +323,6 @@ struct ClipCardView: View {
             Label(L10n.t("Preview", "预览"), systemImage: "eye")
         }
 
-        Button { AppController.shared.showSharePicker(for: item) } label: {
-            Label(L10n.t("Share", "分享"), systemImage: "square.and.arrow.up")
-        }
-
         Divider()
 
         Button(role: .destructive) {
@@ -310,6 +359,25 @@ struct ClipCardView: View {
             let board = store.addPinboard(name: name)
             store.saveToPinboard(item, boardID: board.id)
         }
+    }
+
+    /// Filled dot (inactive) or ring (active) for the context-menu mark row.
+    /// Non-template so NSMenu keeps the actual red/yellow/blue color.
+    private static func markDotIcon(_ color: NSColor, active: Bool) -> NSImage {
+        let size = NSSize(width: 14, height: 14)
+        let image = NSImage(size: size, flipped: false) { rect in
+            color.setFill()
+            if active {
+                let ring = NSBezierPath(ovalIn: rect.insetBy(dx: 1.5, dy: 1.5))
+                ring.lineWidth = 2.5
+                ring.stroke()
+            } else {
+                NSBezierPath(ovalIn: rect.insetBy(dx: 1, dy: 1)).fill()
+            }
+            return true
+        }
+        image.isTemplate = false
+        return image
     }
 
     private static func pinboardMenuIcon(color: NSColor) -> NSImage {

@@ -16,46 +16,30 @@ final class BarPanel: NSPanel {
 @MainActor
 final class BarWindowController: NSWindowController, NSWindowDelegate {
 
-    /// Where the bar is in its show/hide cycle.
-    ///
-    /// This is the authoritative answer to "is the bar up?". `NSWindow.isVisible` used
-    /// to serve that role, but it only returns to false inside an animation completion
-    /// handler, and AppKit drops those handlers when a later animation supersedes them
-    /// on the same property. One missed `orderOut` left the panel permanently
-    /// "visible", so every hotkey press routed to `hide()` and the bar never came back
-    /// until the app was relaunched. That is issue #64.
+    /// Authoritative answer to "is the bar up?". `NSWindow.isVisible` used to serve
+    /// that role and caused issue #64 — a missed `orderOut` (dropped animation
+    /// completion handler) left the panel permanently "visible", so every hotkey
+    /// press routed to `hide()` and the bar never came back until relaunch.
+    /// Show/hide are now instant: no animation, no completion handlers at all.
     private enum Phase: Equatable {
         case hidden
-        case showing(Int)
         case shown
-        case hiding(Int)
     }
 
     private var phase: Phase = .hidden
-    private var epoch = 0
-    /// Direction the bar most recently slid in from. hide() reuses it so a mid-flight
-    /// settings change cannot make the exit slide the wrong way through the panel.
-    private var dockedFromTop = false
-    /// Global mouse-down watcher installed while the bar is up. Dismissal is defined
-    /// as an actual click landing outside the panel — never as "the panel lost key":
-    /// agent-style frontmost apps re-assert focus on their own timers, and treating
-    /// that as an outside click made the bar vanish while the user was still moving
-    /// the mouse toward it.
 
-    /// True while the bar is up or on its way up. `AppController.toggleBar` asks this
-    /// instead of `window.isVisible`.
-    var isPresented: Bool {
-        switch phase {
-        case .showing, .shown: return true
-        case .hidden, .hiding: return false
-        }
-    }
-
-    /// Short as possible while still reading as a slide, not a flash.
-    private static let showDuration: TimeInterval = 0.12
-    private static let hideDuration: TimeInterval = 0.12
+    /// True while the bar is up. `AppController.toggleBar` asks this instead of
+    /// `window.isVisible`.
+    var isPresented: Bool { phase == .shown }
 
     private var outsideClickMonitor: Any?
+    /// Lower-half auto-dismiss: y below this boundary means the user moved on.
+    /// nil = feature off. Computed at show time for the panel's screen.
+    private var lowerDismissBoundary: CGFloat?
+    /// Armed only when the cursor is above the boundary at summon time, so a
+    /// ⌘⇧V summon with the mouse already low does not instantly self-dismiss.
+    private var lowerDismissArmed = false
+    private var lowerHalfTimer: Timer?
 
     /// Watches for real clicks in other apps while the bar is up. Events for our own
     /// panels never reach a global monitor, so clicks inside the bar (cards, chrome,
@@ -68,32 +52,24 @@ final class BarWindowController: NSWindowController, NSWindowDelegate {
         ) { [weak self] _ in
             guard let self, let panel = self.window, panel.isVisible else { return }
             let location = NSEvent.mouseLocation
+
             guard !panel.frame.contains(location) else { return }
             guard !Self.isOverOwnWindow(at: location) else { return }
             AppController.shared.hideBar()
         }
     }
 
-    /// True when `location` lands on an on-screen window owned by this app other than
-    /// the bar itself — menu popups, the settings window, previews. NSMenu tracking
-    /// consumes item clicks before normal dispatch, so clicks on our own menus still
-    /// arrive through this global monitor; without this check, selecting any menu
-    /// item (Settings…, Pin, context menus) dismissed the bar mid-click.
+    /// True when `location` lands on a visible window of this app other than the
+    /// bar itself — menu popups, the settings window, previews. NSMenu tracking
+    /// consumes item clicks before normal dispatch, so clicks on our own menus
+    /// still arrive through this global monitor; without this check, selecting
+    /// any menu item dismissed the bar mid-click. Scans NSApp.windows (in-memory,
+    /// microseconds) — a CGWindowList round-trip here added visible delay to
+    /// every dismissal.
     private nonisolated static func isOverOwnWindow(at location: NSPoint) -> Bool {
-        guard let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID)
-            as? [[String: Any]] else { return false }
-        let pid = ProcessInfo.processInfo.processIdentifier
-        // CGWindow bounds are top-left origin; NSEvent.mouseLocation is bottom-left.
-        let primaryHeight = NSScreen.screens.first?.frame.height ?? 0
-        let point = CGPoint(x: location.x, y: primaryHeight - location.y)
-        for info in list {
-            guard let owner = info[kCGWindowOwnerPID as String] as? Int, owner == pid,
-                  let bounds = info[kCGWindowBounds as String] as? [String: CGFloat] else { continue }
-            let frame = CGRect(x: bounds["X"] ?? 0, y: bounds["Y"] ?? 0,
-                               width: bounds["Width"] ?? 0, height: bounds["Height"] ?? 0)
-            if frame.contains(point) { return true }
+        NSApp.windows.contains { window in
+            window.isVisible && window.frame.contains(location)
         }
-        return false
     }
 
     private func stopOutsideClickMonitor() {
@@ -178,25 +154,6 @@ final class BarWindowController: NSWindowController, NSWindowDelegate {
         return dx * dx + dy * dy
     }
 
-    /// Bumps the transition counter so any completion still in flight becomes stale.
-    private func beginTransition() -> Int {
-        epoch &+= 1
-        return epoch
-    }
-
-    /// Runs `body` exactly once for the transition identified by `token`, and never for
-    /// a transition that has already been superseded.
-    ///
-    /// Both the animation completion handler and a backstop timer call through here.
-    /// The timer is what actually guarantees progress - AppKit drops completion handlers
-    /// when a later animation replaces them, and relying on one to run was the original
-    /// bug. Bumping `epoch` on settle makes the second caller for the same token a no-op.
-    private func settle(_ token: Int, _ body: () -> Void) {
-        guard epoch == token else { return }
-        epoch &+= 1
-        body()
-    }
-
     func show() {
         guard let panel = window else { return }
         guard let screen = Self.targetScreen() else { return }
@@ -204,79 +161,96 @@ final class BarWindowController: NSWindowController, NSWindowDelegate {
         let vf = screen.visibleFrame
         let height = min(CGFloat(Settings.shared.barHeight), vf.height)
         let fromTop = Settings.shared.showFromTop
-        dockedFromTop = fromTop
         let onScreen = NSRect(x: vf.minX,
                               y: fromTop ? vf.maxY - height : vf.minY,
                               width: vf.width, height: height)
 
-        // The panel stays parked at its final frame and the content slides in *inside*
-        // it (up from the bottom edge, or down from the top edge). Animating the window
-        // frame itself is not safe on multi-display setups: the old staging rect
-        // (vf.minY - height) is only genuinely off-screen when nothing sits below the
-        // target display. With displays stacked vertically it lands on the neighbouring
-        // screen, so the bar appeared there in full and then flew across the bezel.
-        // A view clipped to the window can never escape it.
+        // No slide animation: the window parks at its final frame and the content is
+        // placed at its final offset *before* ordering front, so summon is instant.
+        // (The content still moves inside the window rather than the window frame
+        // itself: on multi-display setups a staging rect outside the target display
+        // can land on a neighbouring screen.)
         panel.setFrame(onScreen, display: false)
         guard let content = panel.contentView else { return }
         let bottomExtension = Self.contentBottomExtension
         let contentHeight = height + bottomExtension
         content.autoresizingMask = []
-        content.frame = NSRect(x: 0, y: fromTop ? contentHeight : -contentHeight,
+        content.frame = NSRect(x: 0, y: fromTop ? 0 : -bottomExtension,
                                width: onScreen.width, height: contentHeight)
 
-        let token = beginTransition()
-        phase = .showing(token)
-
+        phase = .shown
         NSApp.activate(ignoringOtherApps: true)
         panel.makeKeyAndOrderFront(nil)
+        startOutsideClickMonitor()
 
-        let finish: @MainActor @Sendable () -> Void = { [weak self] in
-            guard let self else { return }
-            self.settle(token) {
-                self.phase = .shown
+        // Arm lower-half auto-dismiss: the boundary is the panel screen's vertical
+        // midline (never above the panel itself), and only if the cursor is not
+        // already below it at summon time.
+        if Settings.shared.lowerHalfDismiss {
+            lowerDismissBoundary = max(vf.midY, onScreen.minY)
+            lowerDismissArmed = NSEvent.mouseLocation.y >= lowerDismissBoundary!
+            startLowerHalfWatch()
+        } else {
+            lowerDismissBoundary = nil
+            stopLowerHalfWatch()
+        }
+    }
+
+    /// Polls the cursor while the bar is up: entering the lower half dismisses.
+    /// Polling instead of a global mouseMoved monitor because AppKit only produces
+    /// mouseMoved NSEvents for windows that accept them — other apps' windows
+    /// mostly don't, so the monitor would never fire. 0.1s = imperceptible.
+    private func startLowerHalfWatch() {
+        lowerHalfTimer?.invalidate()
+        let timer = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, let boundary = self.lowerDismissBoundary,
+                      self.window?.isVisible == true else { return }
+                let loc = NSEvent.mouseLocation
+                if loc.y < boundary {
+                    // Downward crossing of the midline = "I moved on".
+                    if self.lowerDismissArmed {
+                        self.lowerDismissArmed = false
+                        AppController.shared.hideBar()
+                    }
+                } else {
+                    // Upward crossing re-arms, so the dismissal works no matter
+                    // where the cursor was when the bar was summoned.
+                    self.lowerDismissArmed = true
+                }
             }
         }
-        NSAnimationContext.runAnimationGroup({ ctx in
-            ctx.duration = Self.showDuration
-            ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            content.animator().frame = NSRect(x: 0, y: fromTop ? 0 : -bottomExtension,
-                                              width: onScreen.width, height: contentHeight)
-        }, completionHandler: { DispatchQueue.main.async(execute: finish) })
-        DispatchQueue.main.asyncAfter(deadline: .now() + Self.showDuration + 0.05, execute: finish)
-        startOutsideClickMonitor()
+        RunLoop.main.add(timer, forMode: .common)
+        lowerHalfTimer = timer
+    }
+
+    private func stopLowerHalfWatch() {
+        lowerHalfTimer?.invalidate()
+        lowerHalfTimer = nil
     }
 
     func hide() {
-        guard let panel = window, let content = panel.contentView else { return }
+        guard let panel = window else { return }
         guard isPresented else { return }
 
         stopOutsideClickMonitor()
-        let token = beginTransition()
-        phase = .hiding(token)
-        let exit = NSRect(x: 0,
-                          y: dockedFromTop ? content.frame.height : -content.frame.height,
-                          width: content.frame.width, height: content.frame.height)
-
-        let finish: @MainActor @Sendable () -> Void = { [weak self] in
-            guard let self else { return }
-            self.settle(token) {
-                panel.orderOut(nil)
-                self.phase = .hidden
-            }
+        stopLowerHalfWatch()
+        phase = .hidden
+        panel.orderOut(nil)
+        // Drop decoded images shortly after dismissal so idle footprint returns to
+        // the framework baseline regardless of how many images were browsed. The
+        // delay keeps a quick re-summon on warm cache.
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            ClipboardStore.shared.purgeImageCache()
         }
-        NSAnimationContext.runAnimationGroup({ ctx in
-            ctx.duration = Self.hideDuration
-            ctx.timingFunction = CAMediaTimingFunction(name: .easeIn)
-            content.animator().frame = exit
-        }, completionHandler: { DispatchQueue.main.async(execute: finish) })
-        DispatchQueue.main.asyncAfter(deadline: .now() + Self.hideDuration + 0.05, execute: finish)
     }
 
-    /// Drops the bar with no animation and no completion handler to depend on.
-    /// Used after sleep or a display change, where an in-flight transition can be
-    /// left stranded on a screen that no longer exists.
+    /// Drops the bar immediately with no animation. Used after sleep or a display
+    /// change, where an in-flight transition can be left stranded on a screen that
+    /// no longer exists.
     func forceHide() {
-        _ = beginTransition()
+        stopLowerHalfWatch()
         phase = .hidden
         stopOutsideClickMonitor()
         window?.orderOut(nil)

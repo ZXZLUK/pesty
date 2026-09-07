@@ -80,22 +80,15 @@ final class ClipboardStore {
         ProcessInfo.processInfo.environment["APP_SANDBOX_CONTAINER_ID"] != nil
     }
 
-    static var iCloudBase: URL? {
-        guard !isSandboxed else { return nil }
-        let p = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Mobile Documents/com~apple~CloudDocs", isDirectory: true)
-        guard FileManager.default.fileExists(atPath: p.path) else { return nil }
-        return p.appendingPathComponent("ClipBar", isDirectory: true)
-    }
-
-    var iCloudAvailable: Bool { ClipboardStore.iCloudBase != nil }
-
     private init() {
         let base = ClipboardStore.localBase
         baseDir = base
         imagesDir = base.appendingPathComponent("images", isDirectory: true)
         legacyStoreURL = base.appendingPathComponent("store.json")
-        imageCache.countLimit = 200
+        // Decoded screenshots are the largest objects in this app (multiple MB
+        // each); 25 covers a screenful of cards plus scroll buffer without
+        // letting history browsing accumulate hundreds of megabytes.
+        imageCache.countLimit = 25
         prepareDirectories()
         db = SQLiteStore(directory: base)
         load()
@@ -251,6 +244,13 @@ final class ClipboardStore {
         scheduleSave()
     }
 
+    /// Frees decoded images once the bar is dismissed: idle footprint returns to
+    /// the framework baseline no matter how much image browsing happened. Images
+    /// re-decode from disk for visible cards on the next summon.
+    func purgeImageCache() {
+        imageCache.removeAllObjects()
+    }
+
     /// O(1) capture dedup: contentKey -> id of the surviving history item.
     /// Captures keep it valid incrementally (a promotion reuses the same key;
     /// an insert adds one entry); every other history mutation dirties it via
@@ -322,9 +322,6 @@ final class ClipboardStore {
     private func markRetentionPruned(_ items: [ClipItem]) {
         let names = items.map { $0.id.uuidString }
         retentionPrunedRecordNames.formUnion(names)
-        #if MAS
-        CloudSyncService.shared.retainRemoteRecords(named: names)
-        #endif
     }
 
     /// Deletes a clip from the collection currently on screen only. A Pinboard
@@ -573,6 +570,20 @@ final class ClipboardStore {
               ["http", "https"].contains(scheme),
               url.host != nil else { return false }
         return true
+    }
+
+    /// Applies a highlight mark (nil clears) to the clip in every container.
+    /// Mark is metadata: it survives re-capture dedup (contentKey excludes it).
+    func setMark(_ mark: String?, for id: UUID) {
+        if let i = history.firstIndex(where: { $0.id == id }) {
+            history[i].markColor = mark
+        }
+        for b in pinboards.indices {
+            if let i = pinboards[b].items.firstIndex(where: { $0.id == id }) {
+                pinboards[b].items[i].markColor = mark
+            }
+        }
+        scheduleSave()
     }
 
     func setTitle(_ title: String, for item: ClipItem) {

@@ -94,12 +94,6 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         if Settings.shared.launchAtLogin { LaunchAtLogin.set(enabled: true) }
 
-        #if MAS
-        // CKSyncEngine handles the push payloads itself; the app only registers.
-        NSApplication.shared.registerForRemoteNotifications()
-        if Settings.shared.cloudKitSync { CloudSyncService.shared.start() }
-        #endif
-
         if CommandLine.arguments.contains("--demo") {
             store.seedDemo()
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
@@ -293,19 +287,6 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
         ])
     }
 
-    func toggleICloudSync() {
-        // Multi-Mac sync is parked until its semantics are redesigned
-        // (KNOWN_ISSUES KI-008/009: union merges resurrect deletions; the old
-        // whole-file watcher does not survive the SQLite migration). History
-        // stays on this Mac, which is also the privacy-safe default.
-        let alert = NSAlert()
-        alert.messageText = L10n.t("Sync unavailable", "同步暂不可用")
-        alert.informativeText = L10n.t(
-            "Multi-Mac sync is being rebuilt on the new database and is temporarily disabled. Your history stays on this Mac.",
-            "多设备同步正在基于新数据库重新设计中，暂时停用。你的历史数据只保存在本机。")
-        alert.runModal()
-    }
-
     static func restart() {
         let path = Bundle.main.bundlePath
         let task = Process()
@@ -476,27 +457,6 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.makeKeyAndOrderFront(nil)
     }
 
-    func showSharePicker(for item: ClipItem) {
-        let items = shareItems(for: item)
-        guard !items.isEmpty,
-              let view = barController?.window?.contentView ?? NSApp.keyWindow?.contentView else { return }
-        let picker = NSSharingServicePicker(items: items)
-        let anchor = NSRect(x: view.bounds.midX, y: view.bounds.midY, width: 1, height: 1)
-        picker.show(relativeTo: anchor, of: view, preferredEdge: .maxY)
-    }
-
-    private func shareItems(for item: ClipItem) -> [Any] {
-        switch item.type {
-        case .image:
-            return store.loadImage(for: item).map { [$0] } ?? []
-        case .file:
-            let urls = item.fileURLs.compactMap(URL.init(string:)).filter(\.isFileURL)
-            return urls.isEmpty ? (item.plainText.map { [$0 as NSString] } ?? []) : urls
-        case .color, .text, .richText, .link:
-            return item.plainText.map { [$0 as NSString] } ?? []
-        }
-    }
-
     func deleteEffectiveSelection() {
         let selection = store.effectiveSelectionIDs
         let targets = store.visibleItems.filter { selection.contains($0.id) }
@@ -507,11 +467,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         let alert = NSAlert()
         alert.messageText = L10n.t("Delete \(targets.count) Clips?", "删除 \(targets.count) 条？")
-        #if MAS
-        alert.informativeText = L10n.t("There is no undo. When iCloud sync is on, these clips are also removed from your other devices.", "此操作无法撤销。开启 iCloud 同步时，其他设备上的这些内容也会被移除。")
-        #else
         alert.informativeText = L10n.t("There is no undo.", "此操作无法撤销。")
-        #endif
         let confirm = alert.addButton(withTitle: L10n.t("Delete \(targets.count) Clips", "删除 \(targets.count) 条"))
         confirm.hasDestructiveAction = true
         alert.addButton(withTitle: L10n.t("Cancel", "取消"))

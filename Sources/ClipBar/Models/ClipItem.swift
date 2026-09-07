@@ -16,6 +16,11 @@ struct ClipItem: Identifiable, Codable, Equatable {
     var customTitle: String?
     var createdAt: Date
 
+    /// User-applied highlight (标注): "red"/"yellow"/"blue", nil = unmarked.
+    /// Metadata, not content — deliberately excluded from `contentKey` so
+    /// re-copying the same text promotes the marked original and keeps it.
+    var markColor: String?
+
     /// True when `text`/`rtfData` hold only a memory preview (first
     /// `ClipboardStore.memoryPreviewLimit` bytes) and the full payload lives in
     /// the database. Paste/edit paths must fetch the full content via
@@ -34,7 +39,8 @@ struct ClipItem: Identifiable, Codable, Equatable {
          sourceAppName: String? = nil,
          customTitle: String? = nil,
          createdAt: Date = Date(),
-         textTruncated: Bool = false) {
+         textTruncated: Bool = false,
+         markColor: String? = nil) {
         self.id = id
         self.type = type
         self.text = text
@@ -48,12 +54,13 @@ struct ClipItem: Identifiable, Codable, Equatable {
         self.customTitle = customTitle
         self.createdAt = createdAt
         self.textTruncated = textTruncated
+        self.markColor = markColor
     }
 
     enum CodingKeys: String, CodingKey {
         case id, type, text, rtfData, imageFileName, imageHash
         case fileURLs, colorHex, sourceBundleID, sourceAppName, customTitle
-        case createdAt, textTruncated
+        case createdAt, textTruncated, markColor
     }
 
     init(from decoder: Decoder) throws {
@@ -71,6 +78,7 @@ struct ClipItem: Identifiable, Codable, Equatable {
         customTitle = try c.decodeIfPresent(String.self, forKey: .customTitle)
         createdAt = try c.decode(Date.self, forKey: .createdAt)
         textTruncated = try c.decodeIfPresent(Bool.self, forKey: .textTruncated) ?? false
+        markColor = try c.decodeIfPresent(String.self, forKey: .markColor)
     }
 
     var charCount: Int { text?.count ?? 0 }
@@ -133,5 +141,24 @@ struct ClipItem: Identifiable, Codable, Equatable {
 
     func sameContent(as other: ClipItem) -> Bool {
         contentKey == other.contentKey
+    }
+}
+
+/// The three highlight marks offered in the context menu. Raw values persist in
+/// the database (`clips.mark_color`) and travel with the clip.
+enum ClipMark: String, CaseIterable {
+    case red, yellow, blue
+
+    init?(raw: String?) {
+        guard let raw else { return nil }
+        self.init(rawValue: raw)
+    }
+
+    var label: String {
+        switch self {
+        case .red: return L10n.t("Red", "红")
+        case .yellow: return L10n.t("Yellow", "黄")
+        case .blue: return L10n.t("Blue", "蓝")
+        }
     }
 }
