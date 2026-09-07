@@ -11,10 +11,11 @@ final class HotEdgeController {
     static let shared = HotEdgeController()
 
     private static let stripThickness: CGFloat = 4
-    /// Only the middle 60% of the top edge triggers: the outer 20% margins
-    /// stay dead so quick moves to the window close buttons / corners never
-    /// summon the bar (owner ruling).
-    private static let sideMarginRatio: CGFloat = 0.2
+    /// Only the middle of the top edge triggers: the left 20% and right 30%
+    /// margins stay dead so quick moves to the close buttons / corners never
+    /// summon the bar (owner ruling — right side is used more, wider margin).
+    private static let leftMarginRatio: CGFloat = 0.2
+    private static let rightMarginRatio: CGFloat = 0.3
 
     private var strips: [NSPanel] = []
     /// One-shot arming: the edge cannot re-trigger until the cursor leaves it, so
@@ -35,10 +36,11 @@ final class HotEdgeController {
     private func install() {
         guard strips.isEmpty, Settings.shared.hotEdgeEnabled else { return }
         for screen in NSScreen.screens {
-            let margin = screen.frame.width * Self.sideMarginRatio
-            let frame = NSRect(x: screen.frame.minX + margin,
+            let leftMargin = screen.frame.width * Self.leftMarginRatio
+            let rightMargin = screen.frame.width * Self.rightMarginRatio
+            let frame = NSRect(x: screen.frame.minX + leftMargin,
                                y: screen.frame.maxY - Self.stripThickness,
-                               width: screen.frame.width - margin * 2,
+                               width: screen.frame.width - leftMargin - rightMargin,
                                height: Self.stripThickness)
             let strip = HotEdgePanel(frame: frame)
             strip.orderFrontRegardless()
