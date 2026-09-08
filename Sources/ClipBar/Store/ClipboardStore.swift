@@ -230,6 +230,7 @@ final class ClipboardStore {
                 selectedID = existing.id
                 selectionAnchorID = existing.id
             }
+            LinkRuleEngine.evaluate(existing, in: self)
             scheduleSave()
             return
         }
@@ -241,6 +242,7 @@ final class ClipboardStore {
             selectedID = item.id
             selectionAnchorID = item.id
         }
+        LinkRuleEngine.evaluate(item, in: self)
         scheduleSave()
     }
 

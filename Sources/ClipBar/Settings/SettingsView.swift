@@ -166,6 +166,21 @@ private struct GeneralSettings: View {
                 Toggle(L10n.t("Auto-dismiss when the mouse moves to the lower half", "鼠标移到屏幕下半部自动收起"), isOn: $settings.lowerHalfDismiss)
             }
 
+            Section(L10n.t("Link Rules", "链接规则")) {
+                Text(L10n.t("Copied links matching a rule run its action immediately — e.g. a WeChat article copied on your phone opens in your browser here.",
+                            "复制的链接命中规则时立即执行其动作——例如手机上复制微信公众号文章，会在本机浏览器里自动打开。"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                ForEach($settings.linkRules) { $rule in
+                    LinkRuleRow(rule: $rule, onDelete: { settings.linkRules.removeAll { $0.id == rule.id } })
+                }
+                Button {
+                    settings.linkRules.append(LinkRule(domain: "", action: .openInBrowser))
+                } label: {
+                    Label(L10n.t("Add Rule…", "添加规则…"), systemImage: "plus")
+                }
+            }
+
             Section(L10n.t("Permissions", "权限")) {
                 HStack(spacing: 10) {
                     Image(systemName: accessibilityGranted ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
@@ -349,5 +364,55 @@ private struct AboutView: View {
         }
         .padding(28)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+
+private struct LinkRuleRow: View {
+    @Binding var rule: LinkRule
+    let onDelete: () -> Void
+
+    @State private var actionChoice: String = "browser"
+    @State private var scriptPath: String = ""
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Toggle("", isOn: $rule.enabled)
+                .labelsHidden()
+                .controlSize(.small)
+            TextField(L10n.t("Domain (e.g. mp.weixin.qq.com)", "域名（如 mp.weixin.qq.com）"), text: $rule.domain)
+                .textFieldStyle(.roundedBorder)
+                .frame(minWidth: 150)
+            Picker("", selection: $actionChoice) {
+                Text(L10n.t("Open in browser", "打开浏览器")).tag("browser")
+                Text(L10n.t("Run script", "运行脚本")).tag("script")
+            }
+            .labelsHidden()
+            .frame(width: 110)
+            if actionChoice == "script" {
+                TextField(L10n.t("Script path", "脚本路径"), text: $scriptPath)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(minWidth: 120)
+                    .onChange(of: scriptPath) { _, newValue in
+                        rule.action = .runScript(path: newValue)
+                    }
+            }
+            Button(role: .destructive, action: onDelete) {
+                Image(systemName: "minus.circle.fill")
+                    .foregroundStyle(.red)
+            }
+            .buttonStyle(.plain)
+        }
+        .onAppear {
+            switch rule.action {
+            case .openInBrowser: actionChoice = "browser"
+            case .runScript(let path):
+                actionChoice = "script"
+                scriptPath = path
+            }
+        }
+        .onChange(of: actionChoice) { _, newValue in
+            rule.action = newValue == "script" ? .runScript(path: scriptPath) : .openInBrowser
+        }
     }
 }

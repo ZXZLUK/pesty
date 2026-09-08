@@ -103,6 +103,7 @@ final class Settings {
         static let hotEdgeEnabled = "hotEdgeEnabled"
         static let lowerHalfDismiss = "lowerHalfDismiss"
         static let smartFocusInput = "smartFocusInput"
+        static let linkRules = "linkRules"
         static let showMenuBarIcon = "showMenuBarIcon"
         static let onboarded = "onboarded"
         static let barHeightSlimmed = "barHeightSlimmed"
@@ -229,6 +230,18 @@ final class Settings {
         didSet { guard isLoaded else { return }; d.set(smartFocusInput, forKey: Keys.smartFocusInput) }
     }
 
+    /// Link-trigger rules: a captured link whose host matches a rule's domain
+    /// immediately runs that rule's action (open in browser / run a script).
+    /// Data-driven: add or edit rows in Settings → Rules.
+    var linkRules: [LinkRule] {
+        didSet { guard isLoaded else { return }; persist() }
+    }
+
+    private func persist() {
+        guard let data = try? JSONEncoder().encode(linkRules) else { return }
+        d.set(data, forKey: Keys.linkRules)
+    }
+
     var showMenuBarIcon: Bool {
         didSet {
             guard isLoaded else { return }
@@ -310,6 +323,12 @@ final class Settings {
         hotEdgeEnabled = d.bool(forKey: Keys.hotEdgeEnabled)
         lowerHalfDismiss = d.bool(forKey: Keys.lowerHalfDismiss)
         smartFocusInput = d.bool(forKey: Keys.smartFocusInput)
+        if let data = d.data(forKey: Keys.linkRules),
+           let decoded = try? JSONDecoder().decode([LinkRule].self, from: data) {
+            linkRules = decoded
+        } else {
+            linkRules = [LinkRule(domain: "mp.weixin.qq.com", action: .openInBrowser)]
+        }
         showMenuBarIcon = d.bool(forKey: Keys.showMenuBarIcon)
         onboarded = d.bool(forKey: Keys.onboarded)
         isLoaded = true
