@@ -87,7 +87,10 @@ final class BarWindowController: NSWindowController, NSWindowDelegate {
     init() {
         let panel = BarPanel(
             contentRect: NSRect(x: 0, y: 0, width: 800, height: 360),
-            styleMask: [.borderless],
+            // Non-activating: summoning the bar must not disturb the
+            // active app — activation shifts made other apps collapse their
+            // floating panels (e.g. the right-side settings rail) on approach.
+            styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false)
         panel.isFloatingPanel = true
