@@ -222,6 +222,10 @@ final class ClipboardStore {
         var index = dedupIndex ?? rebuildDedupIndex()
         if let existingID = index[item.contentKey],
            let idx = history.firstIndex(where: { $0.id == existingID }) {
+            // Identical re-capture of the HEAD item (voice apps re-copy their
+            // output) must not re-fire link rules — only a capture separated
+            // by a different item counts as a fresh event.
+            let isHead = idx == 0
             if item.imageFileName != history[idx].imageFileName { deleteImageFile(item) }
             var existing = history.remove(at: idx)
             existing.createdAt = item.createdAt
@@ -230,7 +234,9 @@ final class ClipboardStore {
                 selectedID = existing.id
                 selectionAnchorID = existing.id
             }
-            LinkRuleEngine.evaluate(existing, in: self)
+            if !isHead {
+                LinkRuleEngine.evaluate(existing, in: self)
+            }
             scheduleSave()
             return
         }

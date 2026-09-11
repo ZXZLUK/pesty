@@ -28,6 +28,20 @@ enum LinkRuleEngine {
     }
 
     private static func run(_ rule: LinkRule, url: URL) {
+        NSLog("ClipBar: link rule fired (%@) -> %@", rule.domain, url.absoluteString)
+        // Env-gated debug trace: CLIPBAR_RULE_DEBUG=1 appends every fire to a
+        // temp file, so trigger semantics can be verified headlessly.
+        if ProcessInfo.processInfo.environment["CLIPBAR_RULE_DEBUG"] == "1" {
+            let line = "\(Date()) fired [\(rule.domain)] \(url.absoluteString)\n"
+            let path = "/tmp/clipbar_rule_fires.log"
+            if let handle = FileHandle(forWritingAtPath: path) {
+                handle.seekToEndOfFile()
+                handle.write(line.data(using: .utf8)!)
+                try? handle.close()
+            } else {
+                try? line.write(toFile: path, atomically: true, encoding: .utf8)
+            }
+        }
         switch rule.action {
         case .openInBrowser:
             NSWorkspace.shared.open(url)
