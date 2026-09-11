@@ -16,8 +16,13 @@ final class HotEdgeController {
     private static let leftMarginRatio: CGFloat = 0.2
     private static let rightMarginRatio: CGFloat = 0.3
     private static let pollInterval: TimeInterval = 0.1
+    /// 0.2s dwell: grazing the top band while moving elsewhere must not
+    /// summon; resting momentarily is intentional. (Owner felt zero-dwell
+    /// misfires when reaching for UI near the top edge; tunable constant.)
+    private static let dwellTime: TimeInterval = 0.2
 
     private var pollTimer: Timer?
+    private var dwellTimer: Timer?
     private var armed = true
 
     func setEnabled(_ enabled: Bool) {
@@ -55,12 +60,32 @@ final class HotEdgeController {
                 && loc.y >= f.maxY - Self.bandThickness
         }
         if inZone {
-            guard armed, !(AppController.shared.barIsPresented ?? false) else { return }
-            armed = false
-            AppController.shared.showBar()
-        } else {
-            // Left the band — re-arm so the next entry triggers again.
-            armed = true
+            if armed {
+                // Just entered the zone: start the dwell window. The summon
+                // only fires if the cursor is STILL in the zone when it
+                // expires — grazing through cancels via tick's else-branch.
+                armed = false
+                let timer = Timer(timeInterval: Self.dwellTime, repeats: false) { [weak self] _ in
+                    MainActor.assumeIsolated { self?.fire() }
+                }
+                RunLoop.main.add(timer, forMode: .common)
+                dwellTimer = timer
+            }
+            // Already dwelling: let the dwell timer decide.
+        } else if dwellTimer != nil {
+            // Left the zone before the dwell expired — grazing. Cancel.
+            dwellTimer?.invalidate()
+            dwellTimer = nil
         }
+        if !inZone {
+            // Left the band — re-arm so the next intentional entry triggers.
+            armed = true
+            dwellTimer = nil
+        }
+    }
+
+    private func fire() {
+        guard !(AppController.shared.barIsPresented ?? false) else { return }
+        AppController.shared.showBar()
     }
 }
