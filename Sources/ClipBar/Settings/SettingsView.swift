@@ -417,13 +417,16 @@ private struct LinkRuleRow: View {
         .onAppear {
             switch rule.action {
             case .openInBrowser: actionChoice = "browser"
+            case .openCopyAllClose: actionChoice = "grab"
             case .runScript(let code):
                 actionChoice = "script"
                 scriptCode = code
             }
         }
         .onChange(of: actionChoice) { _, newValue in
-            rule.action = newValue == "script" ? .runScript(code: scriptCode) : .openInBrowser
+            rule.action = newValue == "script" ? .runScript(code: scriptCode)
+                : newValue == "grab" ? .openCopyAllClose
+                : .openInBrowser
         }
     }
 }

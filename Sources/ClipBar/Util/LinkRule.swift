@@ -23,6 +23,10 @@ struct LinkRule: Codable, Equatable, Identifiable {
 
     enum ActionKind: Codable, Equatable {
         case openInBrowser
+        /// Opens the link, waits for render, then ⌘A ⌘C ⌘W in the browser:
+        /// the full page text lands in the clipboard (and ClipBar history),
+        /// and the tab closes.
+        case openCopyAllClose
         /// Runs via `/bin/zsh -c <code> zsh <url>`: the link is `$1`.
         case runScript(code: String)
     }
