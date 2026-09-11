@@ -1,108 +1,66 @@
 import AppKit
 
-/// Invisible strips pinned to the top edge of every screen: touching the topmost
-/// line summons the bar instantly — no dwell, by explicit owner decision after
-/// trying 0.25s, 0.2s, and 0s (fly-through triggers accepted as the price of
-/// zero latency). The strips sit above the menu bar window level, so the
-/// absolute top line fires even while over the menu bar. One-shot arming keeps
-/// the bar from flapping while the cursor parks on the edge.
+/// Top-edge summon: a lightweight cursor poll detects entry into the middle
+/// of any screen's top edge (left 20% / right 30% dead) and summons the bar
+/// instantly (zero dwell — owner locked 0s after testing the ladder).
+///
+/// Deliberately NO overlay strip: an invisible window across the top would
+/// swallow clicks in that band (menu-bar clicks, window close buttons) and
+/// interfere with normal UI. Polling NSEvent.mouseLocation every 0.1s is
+/// imperceptible and touches nothing.
 @MainActor
 final class HotEdgeController {
     static let shared = HotEdgeController()
 
-    private static let stripThickness: CGFloat = 4
-    /// Only the middle of the top edge triggers: the left 20% and right 30%
-    /// margins stay dead so quick moves to the close buttons / corners never
-    /// summon the bar (owner ruling — right side is used more, wider margin).
+    private static let bandThickness: CGFloat = 4
     private static let leftMarginRatio: CGFloat = 0.2
     private static let rightMarginRatio: CGFloat = 0.3
+    private static let pollInterval: TimeInterval = 0.1
 
-    private var strips: [NSPanel] = []
-    /// One-shot arming: the edge cannot re-trigger until the cursor leaves it, so
-    /// parking at the top never flaps the bar while it is already up, and a
-    /// dismiss with the cursor still parked does not instantly re-show.
+    private var pollTimer: Timer?
     private var armed = true
 
     func setEnabled(_ enabled: Bool) {
         if enabled { install() } else { teardown() }
     }
 
-    /// Re-measures the strips after display geometry changes.
-    func rebuild() {
-        teardown()
-        install()
-    }
+    /// Display geometry is computed live from NSScreen each tick, so display
+    /// changes need no rebuild — kept for API compatibility with AppController.
+    func rebuild() {}
 
-    private func install() {
-        guard strips.isEmpty, Settings.shared.hotEdgeEnabled else { return }
-        for screen in NSScreen.screens {
-            let leftMargin = screen.frame.width * Self.leftMarginRatio
-            let rightMargin = screen.frame.width * Self.rightMarginRatio
-            let frame = NSRect(x: screen.frame.minX + leftMargin,
-                               y: screen.frame.maxY - Self.stripThickness,
-                               width: screen.frame.width - leftMargin - rightMargin,
-                               height: Self.stripThickness)
-            let strip = HotEdgePanel(frame: frame)
-            strip.orderFrontRegardless()
-            strips.append(strip)
+    func install() {
+        guard pollTimer == nil else { return }
+        let timer = Timer(timeInterval: Self.pollInterval, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.tick() }
         }
+        RunLoop.main.add(timer, forMode: .common)
+        pollTimer = timer
     }
 
-    private func teardown() {
-        for strip in strips { strip.orderOut(nil) }
-        strips.removeAll()
+    func teardown() {
+        pollTimer?.invalidate()
+        pollTimer = nil
         armed = true
     }
 
-    fileprivate func handleEnter() {
-        guard armed, !AppController.shared.barIsPresented else { return }
-        armed = false
-        AppController.shared.showBar()
-    }
+    private var inZone = false
 
-    fileprivate func handleExit() {
-        armed = true
-    }
-}
-
-/// Borderless, non-activating, fully transparent window whose only job is to
-/// receive tracking events along one screen's top edge. It swallows clicks on
-/// the outermost 4pt strip — the price of a hover trigger without an event tap.
-private final class HotEdgePanel: NSPanel {
-    init(frame: NSRect) {
-        super.init(contentRect: frame,
-                   styleMask: [.borderless, .nonactivatingPanel],
-                   backing: .buffered,
-                   defer: false)
-        level = .statusBar
-        isOpaque = false
-        backgroundColor = .clear
-        isReleasedWhenClosed = false
-        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
-
-        let view = HotEdgeView(frame: NSRect(origin: .zero, size: frame.size))
-        contentView = view
-    }
-
-    override var canBecomeKey: Bool { false }
-    override var canBecomeMain: Bool { false }
-}
-
-private final class HotEdgeView: NSView {
-    override func updateTrackingAreas() {
-        super.updateTrackingAreas()
-        for area in trackingAreas { removeTrackingArea(area) }
-        addTrackingArea(NSTrackingArea(rect: bounds,
-                                       options: [.mouseEnteredAndExited, .activeAlways],
-                                       owner: self,
-                                       userInfo: nil))
-    }
-
-    override func mouseEntered(with event: NSEvent) {
-        HotEdgeController.shared.handleEnter()
-    }
-
-    override func mouseExited(with event: NSEvent) {
-        HotEdgeController.shared.handleExit()
+    private func tick() {
+        guard Settings.shared.hotEdgeEnabled else { return }
+        let loc = NSEvent.mouseLocation
+        inZone = NSScreen.screens.contains { screen in
+            let f = screen.frame
+            return loc.x >= f.minX + f.width * Self.leftMarginRatio
+                && loc.x <= f.maxX - f.width * Self.rightMarginRatio
+                && loc.y >= f.maxY - Self.bandThickness
+        }
+        if inZone {
+            guard armed, !(AppController.shared.barIsPresented ?? false) else { return }
+            armed = false
+            AppController.shared.showBar()
+        } else {
+            // Left the band — re-arm so the next entry triggers again.
+            armed = true
+        }
     }
 }
