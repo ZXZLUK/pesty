@@ -70,5 +70,10 @@ bash scripts/smoke_noninteractive.sh          # 包完整性冒烟
 
 本项目为**本地私人版本管理**：git 提交仅存在于本机，**不推送任何远端**。
 
+## 触发与自动化机制手册
+
+所有边缘触发、自动收起、链接规则、抓取序列的机制设计、关键常量与已知代价，
+集中在 [TRIGGER_MECHANISMS.md](TRIGGER_MECHANISMS.md)——新增触发类功能前先读它。
+
 > 基于上游 [momenbasel/pesty](https://github.com/momenbasel/pesty)（MIT）深度改造，
 > 原始版权声明见 [LICENSE](LICENSE)。架构与设计文档：[ARCHITECTURE.md](ARCHITECTURE.md)。
