@@ -326,7 +326,12 @@ final class Settings {
         if let data = d.data(forKey: Keys.linkRules),
            let decoded = try? JSONDecoder().decode([LinkRule].self, from: data) {
             linkRules = decoded
+            NSLog("QuickNoteDebug: linkRules decoded count=%d", decoded.count)
+            for r in decoded {
+                NSLog("QuickNoteDebug: rule domain=%@ enabled=%d action=%@", r.domain, r.enabled ? 1 : 0, String(describing: r.action))
+            }
         } else {
+            NSLog("QuickNoteDebug: linkRules decode FAILED, using seed")
             linkRules = [LinkRule(domain: "mp.weixin.qq.com", action: .openInBrowser)]
         }
         showMenuBarIcon = d.bool(forKey: Keys.showMenuBarIcon)

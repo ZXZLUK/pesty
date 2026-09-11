@@ -1,6 +1,19 @@
 import AppKit
 import Foundation
 
+/// Appends to the grab debug trace (/tmp/clipbar_grab_debug.log).
+fileprivate func grabLog(_ message: String) {
+    let line = "\(Date()) grab: \(message)\n"
+    let path = "/tmp/clipbar_grab_debug.log"
+    if let handle = FileHandle(forWritingAtPath: path) {
+        handle.seekToEndOfFile()
+        handle.write(line.data(using: .utf8)!)
+        try? handle.close()
+    } else {
+        try? line.write(toFile: path, atomically: true, encoding: .utf8)
+    }
+}
+
 /// Evaluates link-trigger rules against newly captured links and runs their
 /// actions. Everything happens off the capture path: rules are checked on the
 /// main actor right after `addCaptured`, so a slow action (script launch) can
@@ -67,8 +80,13 @@ enum LinkRuleEngine {
     /// is gated on the DEFAULT BROWSER still being frontmost: a synthetic ⌘W
     /// into an unknown app would close someone else's tab.
     private static func openAndGrab(_ url: URL) {
+        grabLog("open \(url.absoluteString)")
         NSWorkspace.shared.open(url)
-        guard let browserURL = NSWorkspace.shared.urlForApplication(toOpen: url) else { return }
+        guard let browserURL = NSWorkspace.shared.urlForApplication(toOpen: url) else {
+            grabLog("no app resolves for this URL")
+            return
+        }
+        grabLog("browser = \(browserURL.path)")
 
         // Page render buffer for WeChat articles (~2-3s on a normal network),
         // then a click into the page body moves focus off the address bar
@@ -76,30 +94,20 @@ enum LinkRuleEngine {
         // and finally ⌘A ⌘C ⌘W. Each step aborts if the browser isn't
         // frontmost anymore — a synthetic ⌘W into another app would close
         // someone else's tab.
-        let loadWait: TimeInterval = 3.0
+        let loadWait: TimeInterval = 1.5
         let cmd: CGEventFlags = [.maskCommand]
-        postClick(CGPoint(x: 960, y: 540), at: loadWait, frontmost: browserURL)
-        postCombo(0, flags: cmd, at: loadWait + 0.4, frontmost: browserURL)        // ⌘A select all
-        postCombo(8, flags: cmd, at: loadWait + 0.8, frontmost: browserURL)        // ⌘C copy
-        postCombo(13, flags: cmd, at: loadWait + 1.2, frontmost: browserURL)       // ⌘W close tab
+        postCombo(0, flags: cmd, at: loadWait, frontmost: browserURL)              // ⌘A select all
+        postCombo(8, flags: cmd, at: loadWait + 0.1, frontmost: browserURL)        // ⌘C copy
+        postCombo(13, flags: cmd, at: loadWait + 0.2, frontmost: browserURL)       // ⌘W close tab
     }
 
-    private static func postClick(_ point: CGPoint, at delay: TimeInterval, frontmost appURL: URL) {
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-            guard NSWorkspace.shared.frontmostApplication?.bundleURL == appURL else { return }
-            let src = CGEventSource(stateID: .combinedSessionState)
-            guard let down = CGEvent(mouseEventSource: src, mouseType: .leftMouseDown, mouseCursorPosition: point, mouseButton: .left),
-                  let up = CGEvent(mouseEventSource: src, mouseType: .leftMouseUp, mouseCursorPosition: point, mouseButton: .left) else { return }
-            down.post(tap: .cghidEventTap)
-            up.post(tap: .cghidEventTap)
-        }
-    }
 
     private static func postCombo(_ keyCode: CGKeyCode, flags: CGEventFlags,
                                   at delay: TimeInterval, frontmost appURL: URL) {
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+            let location = "t+\(Int(delay))s"
             guard NSWorkspace.shared.frontmostApplication?.bundleURL == appURL else {
-                NSLog("ClipBar: grab keystroke skipped — browser left frontmost")
+                grabLog("SKIP at \(location) — frontmost is not the browser")
                 return
             }
             let src = CGEventSource(stateID: .combinedSessionState)
