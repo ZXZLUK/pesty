@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import Carbon.HIToolbox
 
 final class BarPanel: NSPanel {
     override var canBecomeKey: Bool { true }
