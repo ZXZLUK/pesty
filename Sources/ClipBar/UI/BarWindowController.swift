@@ -182,7 +182,10 @@ final class BarWindowController: NSWindowController, NSWindowDelegate {
                                width: onScreen.width, height: contentHeight)
 
         phase = .shown
-        NSApp.activate(ignoringOtherApps: true)
+        // Non-activating panel + no NSApp.activate: the bar becomes key for
+        // type-to-search WITHOUT this app stealing "active application" from
+        // the frontmost one — their floating UI (settings rails, popovers)
+        // stays exactly as the user left it.
         panel.makeKeyAndOrderFront(nil)
         startOutsideClickMonitor()
 
