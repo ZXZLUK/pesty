@@ -5,9 +5,9 @@ import Foundation
 /// `xxx.mp.weixin.qq.com`), run `action` — immediately on capture, in the
 /// background; nothing else about the capture changes.
 ///
-/// The point of this type is extensibility: rules are user-data, actions are
-/// pluggable (`ActionKind`), and the settings UI edits them freely. Nothing is
-/// hard-wired to WeChat.
+/// Rules are user-editable data: domains are free-form, and the script action
+/// accepts inline shell code (the URL arrives as `$1`) — no external script
+/// files to manage.
 struct LinkRule: Codable, Equatable, Identifiable {
     let id: UUID
     var domain: String
@@ -23,6 +23,7 @@ struct LinkRule: Codable, Equatable, Identifiable {
 
     enum ActionKind: Codable, Equatable {
         case openInBrowser
-        case runScript(path: String)
+        /// Runs via `/bin/zsh -c <code> zsh <url>`: the link is `$1`.
+        case runScript(code: String)
     }
 }

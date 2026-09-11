@@ -373,46 +373,57 @@ private struct LinkRuleRow: View {
     let onDelete: () -> Void
 
     @State private var actionChoice: String = "browser"
-    @State private var scriptPath: String = ""
+    @State private var scriptCode: String = ""
 
     var body: some View {
-        HStack(spacing: 8) {
-            Toggle("", isOn: $rule.enabled)
-                .labelsHidden()
-                .controlSize(.small)
-            TextField(L10n.t("Domain (e.g. mp.weixin.qq.com)", "域名（如 mp.weixin.qq.com）"), text: $rule.domain)
-                .textFieldStyle(.roundedBorder)
-                .frame(minWidth: 150)
-            Picker("", selection: $actionChoice) {
-                Text(L10n.t("Open in browser", "打开浏览器")).tag("browser")
-                Text(L10n.t("Run script", "运行脚本")).tag("script")
-            }
-            .labelsHidden()
-            .frame(width: 110)
-            if actionChoice == "script" {
-                TextField(L10n.t("Script path", "脚本路径"), text: $scriptPath)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Toggle("", isOn: $rule.enabled)
+                    .labelsHidden()
+                    .controlSize(.small)
+                TextField(L10n.t("Domain (e.g. mp.weixin.qq.com)", "域名（如 mp.weixin.qq.com）"), text: $rule.domain)
                     .textFieldStyle(.roundedBorder)
-                    .frame(minWidth: 120)
-                    .onChange(of: scriptPath) { _, newValue in
-                        rule.action = .runScript(path: newValue)
-                    }
+                    .frame(minWidth: 150)
+                Picker("", selection: $actionChoice) {
+                    Text(L10n.t("Open in browser", "打开浏览器")).tag("browser")
+                    Text(L10n.t("Run script", "运行脚本")).tag("script")
+                }
+                .labelsHidden()
+                .frame(width: 110)
+                Button(role: .destructive, action: onDelete) {
+                    Image(systemName: "minus.circle.fill")
+                        .foregroundStyle(.red)
+                }
+                .buttonStyle(.plain)
             }
-            Button(role: .destructive, action: onDelete) {
-                Image(systemName: "minus.circle.fill")
-                    .foregroundStyle(.red)
+            if actionChoice == "script" {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(L10n.t("zsh script — the link arrives as $1", "zsh 脚本——链接作为 $1 传入"))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    TextEditor(text: $scriptCode)
+                        .font(.system(size: 12, design: .monospaced))
+                        .frame(height: 72)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6)
+                                .strokeBorder(Color.secondary.opacity(0.35))
+                        )
+                        .onChange(of: scriptCode) { _, newValue in
+                            rule.action = .runScript(code: newValue)
+                        }
+                }
             }
-            .buttonStyle(.plain)
         }
         .onAppear {
             switch rule.action {
             case .openInBrowser: actionChoice = "browser"
-            case .runScript(let path):
+            case .runScript(let code):
                 actionChoice = "script"
-                scriptPath = path
+                scriptCode = code
             }
         }
         .onChange(of: actionChoice) { _, newValue in
-            rule.action = newValue == "script" ? .runScript(path: scriptPath) : .openInBrowser
+            rule.action = newValue == "script" ? .runScript(code: scriptCode) : .openInBrowser
         }
     }
 }

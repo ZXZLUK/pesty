@@ -31,22 +31,18 @@ enum LinkRuleEngine {
         switch rule.action {
         case .openInBrowser:
             NSWorkspace.shared.open(url)
-        case .runScript(let path):
-            let expanded = (path as NSString).expandingTildeInPath
-            guard FileManager.default.isExecutableFile(atPath: expanded)
-                || FileManager.default.fileExists(atPath: expanded) else {
-                NSLog("ClipBar: link-rule script not found at \(path)")
-                return
-            }
+        case .runScript(let code):
+            // Inline user code: the link arrives as $1. zsh -c never blocks
+            // capture (launched async) and its output is discarded.
             let task = Process()
-            task.executableURL = URL(fileURLWithPath: expanded)
-            task.arguments = [url.absoluteString]
+            task.executableURL = URL(fileURLWithPath: "/bin/zsh")
+            task.arguments = ["-c", code, "zsh", url.absoluteString]
             task.standardOutput = FileHandle.nullDevice
             task.standardError = FileHandle.nullDevice
             do {
                 try task.run()
             } catch {
-                NSLog("ClipBar: link-rule script failed to launch (\(path)): \(error)")
+                NSLog("ClipBar: link-rule script failed: \(error)")
             }
         }
     }
