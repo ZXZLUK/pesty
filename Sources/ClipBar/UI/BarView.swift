@@ -49,6 +49,7 @@ struct BarView: View {
             if store.multiSelectedIDs.count > 1 {
                 bulkDeleteButton
             }
+            subtitleTriggerToggle
             moreMenu
         }
         .padding(.horizontal, 18)
@@ -162,6 +163,30 @@ private func quickFilter(_ type: ClipType) -> some View {
         .menuIndicator(.hidden)
         .frame(width: 34)
         .fixedSize()
+    }
+
+    /// 显性开关：字幕自动处理直接在面板顶栏切换——状态一眼可见，点一下即切换，
+    /// 不用进设置翻。开启时圆点高亮 + 胶囊底色。
+    private var subtitleTriggerToggle: some View {
+        let on = settings.subtitleTriggerEnabled
+        return Button {
+            settings.subtitleTriggerEnabled.toggle()
+        } label: {
+            HStack(spacing: 5) {
+                Circle()
+                    .fill(on ? Theme.selection : Theme.chromeTextSecondary.opacity(0.55))
+                    .frame(width: 7, height: 7)
+                Text(L10n.t("Subtitles", "字幕"))
+                    .font(.system(size: 12, weight: on ? .semibold : .regular))
+                    .foregroundStyle(on ? Theme.selection : Theme.chromeTextSecondary)
+            }
+            .padding(.horizontal, 9)
+            .padding(.vertical, 5)
+            .background(on ? Theme.selection.opacity(0.16) : Color.clear, in: Capsule())
+        }
+        .buttonStyle(.plain)
+        .help(L10n.t(on ? "Subtitle auto-processing is ON — click to turn off" : "Subtitle auto-processing is OFF — click to turn on",
+                     on ? "字幕自动处理已开启——点按关闭" : "字幕自动处理已关闭——点按开启"))
     }
 
     /// Identifies the padded scroll content, so a presentation reset can land
