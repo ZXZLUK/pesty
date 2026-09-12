@@ -181,6 +181,24 @@ private struct GeneralSettings: View {
                 }
             }
 
+            Section(L10n.t("Subtitle Trigger", "字幕触发")) {
+                Toggle(L10n.t("Detect subtitles and run script", "识别字幕并自动运行脚本"), isOn: $settings.subtitleTriggerEnabled)
+                if settings.subtitleTriggerEnabled {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(L10n.t("zsh script — the full subtitle text arrives as $1", "zsh 脚本——字幕全文作为 $1 传入"))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        TextEditor(text: $settings.subtitleScript)
+                            .font(.system(size: 12, design: .monospaced))
+                            .frame(height: 72)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .strokeBorder(Color.secondary.opacity(0.35))
+                            )
+                    }
+                }
+            }
+
             Section(L10n.t("Permissions", "权限")) {
                 HStack(spacing: 10) {
                     Image(systemName: accessibilityGranted ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")

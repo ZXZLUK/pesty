@@ -249,6 +249,9 @@ final class ClipboardStore {
             selectionAnchorID = item.id
         }
         LinkRuleEngine.evaluate(item, in: self)
+        if item.type == .text || item.type == .richText {
+            SubtitleTrigger.evaluate(item, in: self)
+        }
         scheduleSave()
     }
 

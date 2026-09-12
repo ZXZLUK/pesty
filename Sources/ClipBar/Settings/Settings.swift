@@ -103,6 +103,8 @@ final class Settings {
         static let hotEdgeEnabled = "hotEdgeEnabled"
         static let lowerHalfDismiss = "lowerHalfDismiss"
         static let smartFocusInput = "smartFocusInput"
+        static let subtitleTriggerEnabled = "subtitleTriggerEnabled"
+        static let subtitleScript = "subtitleScript"
         static let linkRules = "linkRules"
         static let showMenuBarIcon = "showMenuBarIcon"
         static let onboarded = "onboarded"
@@ -237,6 +239,17 @@ final class Settings {
         didSet { guard isLoaded else { return }; persist() }
     }
 
+    /// 字幕自动处理：捕获的文本具备字幕特征（≥2 行时间轴）时，自动运行
+    /// 用户脚本（字幕全文作为 $1）。总开关——不需要时整体关闭。
+    var subtitleTriggerEnabled: Bool {
+        didSet { guard isLoaded else { return }; d.set(subtitleTriggerEnabled, forKey: Keys.subtitleTriggerEnabled) }
+    }
+
+    /// 字幕处理脚本（zsh，$1 = 字幕全文），内联编辑。
+    var subtitleScript: String {
+        didSet { guard isLoaded else { return }; d.set(subtitleScript, forKey: Keys.subtitleScript) }
+    }
+
     private func persist() {
         guard let data = try? JSONEncoder().encode(linkRules) else { return }
         d.set(data, forKey: Keys.linkRules)
@@ -275,6 +288,8 @@ final class Settings {
             Keys.hotEdgeEnabled: true,
             Keys.lowerHalfDismiss: true,
             Keys.smartFocusInput: true,
+            Keys.subtitleTriggerEnabled: true,
+            Keys.subtitleScript: "",
             Keys.showMenuBarIcon: true,
             Keys.onboarded: false
         ])
@@ -323,6 +338,8 @@ final class Settings {
         hotEdgeEnabled = d.bool(forKey: Keys.hotEdgeEnabled)
         lowerHalfDismiss = d.bool(forKey: Keys.lowerHalfDismiss)
         smartFocusInput = d.bool(forKey: Keys.smartFocusInput)
+        subtitleTriggerEnabled = d.bool(forKey: Keys.subtitleTriggerEnabled)
+        subtitleScript = d.string(forKey: Keys.subtitleScript) ?? ""
         if let data = d.data(forKey: Keys.linkRules),
            let decoded = try? JSONDecoder().decode([LinkRule].self, from: data) {
             linkRules = decoded
