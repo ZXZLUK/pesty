@@ -171,7 +171,10 @@ private func quickFilter(_ type: ClipType) -> some View {
         HStack(spacing: 6) {
             agentToggle
             if settings.subtitleTriggerEnabled {
-                agentPresetMenu
+                VStack(spacing: 1) {
+                    agentPresetMenu
+                    AgentStatusView()
+                }
             }
         }
     }
@@ -194,8 +197,8 @@ private func quickFilter(_ type: ClipType) -> some View {
             .background(on ? Theme.selection.opacity(0.16) : Color.clear, in: Capsule())
         }
         .buttonStyle(.plain)
-        .help(L10n.t(on ? "Podcast Agent is ON — new subtitles and long text may compile automatically" : "Podcast Agent is OFF — no automatic model calls",
-                     on ? "Podcast Agent 已开启——新字幕和长文本可自动编译" : "Podcast Agent 已关闭——不会自动调用模型"))
+        .help(L10n.t(on ? "Podcast Agent is ON — explicitly routed content compiles in the background" : "Podcast Agent is OFF — no automatic model calls",
+                     on ? "Podcast Agent 已开启——明确来源内容在后台编译；普通长文本不触发" : "Podcast Agent 已关闭——不会自动调用模型"))
     }
 
     private var agentPresetMenu: some View {

@@ -107,7 +107,8 @@
 - **YouTube producer fallback**：Chromium 的程序化纯文本剪贴板写入会携带
   `org.chromium.source-url` 和 `org.chromium.internal.source-rfh-token`。ClipBar 只在来源 host 为
   `youtube.com`/其子域、存在纯文本类型且没有 HTML/RTF 时生成 `youtube/transcript/compile` intent；
-  因此扩展按钮和快捷键两种入口都能触发，也不依赖全局键盘监听或 Input Monitoring 权限。
+  该兼容路径只在 URL 可读且可验证时生效；nil/opaque 来源不能被当成 YouTube。
+  正常路径是字幕扩展在复制时附带固定 HTML comment 意图，按钮和快捷键共用复制实现。
 - **正文不污染**：正常 custom-format 与 HTML fallback 都保持 `text/plain` 原样，因此即使
   Agent 关闭，用户把字幕粘贴到其他应用也不会看到触发标记。
 - **幂等**：仍挂在“新捕获”路径；与头条完全相同的紧邻重复沿用现有 dedup 跳过，
@@ -121,8 +122,10 @@
 - **输出回环防护**：编译器在 `pbcopy` 前以结果正文的 SHA-256 写入 one-shot 临时 marker；
   `AgentTrigger` 捕获到同一哈希时消费 marker，只保存结果、不再次调用模型。marker 文件名只有哈希，
   不保存正文；按哈希分文件，因此并发任务不会互相覆盖。
-- **失败可观测**：脚本 stdout/stderr 继续丢弃以免污染前台；非零退出由
-  `terminationHandler` 写系统日志。失败不得覆盖 owner 当前剪贴板。
+- **失败可观测**：`~/Library/Application Support/ClipBar/agent-events.jsonl` 记录启动、退出、重复抑制等闭集事件，无正文、URL、脚本或凭据；最多两份 256 KiB 左右日志。编译器每个任务的 `clipboard.receipt.json` 和 `var/clipboard-status.json` 记录模型处理与交付状态。不能因 NSLog 缺失就判定未触发。
+- **可见状态**：形态菜单下显示编译中、已回写、已保存或失败。点击状态可复制已审核结果或在访达中定位文件。编译期间用户复制了其他内容时，保留新剪贴板而不强行覆盖。
+- **交付验收**：Node 的 encoding 不是原生 pbcopy 的 locale。编译器和桥接子进程明确使用 en_US.UTF-8；只有中文逐字读回匹配才记 clipboard_verified，不再把 exit 0 当作成功。
+- **幂等补充**：紧邻重复保持跳过；非相邻重捕获使用当前事件 metadata，而非旧历史 metadata；同原文同 preset 在途请求不重启模型。
 
 ## 10. 通用设计原则（从以上机制提炼）
 

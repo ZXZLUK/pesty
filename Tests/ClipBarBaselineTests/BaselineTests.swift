@@ -238,9 +238,10 @@ import Carbon.HIToolbox
         let routed = ClipItem(type: .text, text: "与历史完全相同的正文", agentMetadata: route)
         let ordinary = ClipItem(type: .text, text: "与历史完全相同的正文")
         let image = ClipItem(type: .image, imageHash: "same")
-        #expect(AgentTrigger.shouldReevaluateDuplicate(routed))
-        #expect(!AgentTrigger.shouldReevaluateDuplicate(ordinary))
-        #expect(!AgentTrigger.shouldReevaluateDuplicate(image))
+        #expect(AgentTrigger.shouldReevaluateDuplicate(routed, isHead: false))
+        #expect(!AgentTrigger.shouldReevaluateDuplicate(routed, isHead: true))
+        #expect(!AgentTrigger.shouldReevaluateDuplicate(ordinary, isHead: false))
+        #expect(!AgentTrigger.shouldReevaluateDuplicate(image, isHead: false))
     }
 
     @Test func semanticMarkerIsRemovedBeforeCompilation() {
@@ -287,13 +288,13 @@ import Carbon.HIToolbox
             sourceURL: nil,
             sourceBundleID: "company.thebrowser.Browser",
             sourceAppName: "Arc"
-        )?.source == "youtube")
+        ) == nil)
         #expect(ClipboardAgentMetadata.metadataFromChromiumYouTubePlainText(
             typeNames: programmaticTypes,
             sourceURL: "opaque-source-token",
             sourceBundleID: "company.thebrowser.Browser",
             sourceAppName: "Arc"
-        )?.source == "youtube")
+        ) == nil)
         #expect(ClipboardAgentMetadata.metadataFromChromiumYouTubePlainText(
             typeNames: programmaticTypes,
             sourceURL: nil,

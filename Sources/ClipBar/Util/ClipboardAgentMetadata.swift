@@ -54,10 +54,9 @@ struct ClipboardAgentMetadata: Codable, Equatable {
         return parseCompactFields(marker)
     }
 
-    /// Chromium exposes provenance marker types on programmatic clipboard writes, but the
-    /// `org.chromium.source-url` value is not guaranteed to be readable cross-process on macOS.
-    /// When the URL is readable it must be YouTube. When it is unreadable, only the exact
-    /// programmatic plain-text shape from Arc/Chrome is accepted as the producer fallback.
+    /// Legacy source fallback, not proof of an extension action. A missing/opaque
+    /// URL cannot establish YouTube provenance. Explicit producer metadata is the
+    /// normal path and does not depend on Chromium's private fields.
     static func metadataFromChromiumYouTubePlainText(typeNames: Set<String>,
                                                      sourceURL: String?,
                                                      sourceBundleID: String? = nil,
@@ -69,19 +68,11 @@ struct ClipboardAgentMetadata: Codable, Equatable {
               !typeNames.contains("public.rtf") else { return nil }
 
         let rawURL = sourceURL?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if !rawURL.isEmpty,
-           rawURL.count <= 4_096,
-           let url = URL(string: rawURL),
-           let scheme = url.scheme?.lowercased(), ["http", "https"].contains(scheme),
-           let host = url.host?.lowercased() {
-            guard host == "youtube.com" || host.hasSuffix(".youtube.com") else { return nil }
-        } else {
-            // Arc may expose the source-url pasteboard type while returning an opaque or
-            // non-URL value cross-process. Treat that the same as an unreadable value,
-            // but only when the full Chromium programmatic-write fingerprint and browser
-            // identity already passed the guards above.
-            guard isSupportedChromiumBrowser(bundleID: sourceBundleID, appName: sourceAppName) else { return nil }
-        }
+        guard !rawURL.isEmpty, rawURL.count <= 4_096,
+              let url = URL(string: rawURL),
+              let scheme = url.scheme?.lowercased(), ["http", "https"].contains(scheme),
+              let host = url.host?.lowercased(),
+              host == "youtube.com" || host.hasSuffix(".youtube.com") else { return nil }
         return ClipboardAgentMetadata(v: 1, source: "youtube", kind: "transcript", intent: "compile")
     }
 

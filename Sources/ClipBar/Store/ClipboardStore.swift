@@ -237,12 +237,12 @@ final class ClipboardStore {
             if !isHead {
                 LinkRuleEngine.evaluate(existing, in: self)
             }
-            // Dedup preserves the stored item, but explicit semantic metadata belongs
-            // to this fresh capture. Re-evaluate the incoming item so repeated
-            // YouTube transcript exports remain compile requests even when their
-            // bytes already exist in history. Ordinary duplicates still do nothing.
-            if AgentTrigger.shouldReevaluateDuplicate(item) {
+            // Preserve current-event metadata for non-adjacent recaptures. Adjacent
+            // identical copies must not launch another paid compilation.
+            if AgentTrigger.shouldReevaluateDuplicate(item, isHead: isHead) {
                 AgentTrigger.evaluate(item, in: self)
+            } else if isHead && item.agentMetadata?.requestsCompile == true {
+                AgentTrigger.recordEvent("skipped_adjacent_duplicate")
             }
             scheduleSave()
             return
