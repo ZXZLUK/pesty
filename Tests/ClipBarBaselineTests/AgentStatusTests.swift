@@ -93,6 +93,48 @@ import Foundation
         #expect(publishing.title == "发布校验中")
     }
 
+    @Test func numericHUDShowsOnlyRoundedSecondsAndTurnsWarningAfterETA() {
+        let start = Date(timeIntervalSince1970: 1_000)
+        let processing = AgentHUDPresentation(title: "编译中", detail: "unused", tone: .processing, isTerminal: false, linger: 0)
+
+        let initial = AgentHUDNumericStateModel.presentation(
+            requestedAt: start, estimatedMillis: 140_000, semantic: processing, now: start
+        )
+        #expect(initial == AgentHUDNumericPresentation(value: 140, tone: .processing, isOverrun: false))
+
+        let finalSecond = AgentHUDNumericStateModel.presentation(
+            requestedAt: start, estimatedMillis: 140_000, semantic: processing, now: start.addingTimeInterval(139.2)
+        )
+        #expect(finalSecond == AgentHUDNumericPresentation(value: 1, tone: .processing, isOverrun: false))
+
+        let overdue = AgentHUDNumericStateModel.presentation(
+            requestedAt: start, estimatedMillis: 140_000, semantic: processing, now: start.addingTimeInterval(159.8)
+        )
+        #expect(overdue == AgentHUDNumericPresentation(value: 19, tone: .warning, isOverrun: true))
+    }
+
+    @Test func numericHUDTerminalIsReceiptToneZeroOnly() {
+        let now = Date(timeIntervalSince1970: 1_000)
+        for tone in [AgentHUDTone.success, .warning, .review, .failure] {
+            let terminal = AgentHUDPresentation(title: "ignored", detail: "ignored", tone: tone, isTerminal: true, linger: 3)
+            let numeric = AgentHUDNumericStateModel.presentation(
+                requestedAt: now.addingTimeInterval(-999), estimatedMillis: 1, semantic: terminal, now: now
+            )
+            #expect(numeric.value == 0)
+            #expect(numeric.tone == tone)
+            #expect(!numeric.isOverrun)
+        }
+    }
+
+    @Test func numericHUDMetricsStayMinimal() {
+        #expect(AgentHUDVisualMetrics.width >= 36)
+        #expect(AgentHUDVisualMetrics.width <= 50)
+        #expect(AgentHUDVisualMetrics.rowHeight >= 20)
+        #expect(AgentHUDVisualMetrics.rowHeight <= 28)
+        #expect(AgentHUDVisualMetrics.height(for: 1) == AgentHUDVisualMetrics.rowHeight)
+        #expect(AgentHUDVisualMetrics.height(for: 2) == AgentHUDVisualMetrics.rowHeight * 2 + AgentHUDVisualMetrics.rowSpacing)
+    }
+
     @Test func receiptMatcherRejectsOldOrWrongJobs() throws {
         let request = Date(timeIntervalSince1970: 1_757_750_400) // 2025-ish exact value irrelevant; relative matching only.
         let formatter = ISO8601DateFormatter()

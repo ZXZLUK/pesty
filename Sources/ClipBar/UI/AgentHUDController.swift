@@ -198,6 +198,55 @@ final class AgentHUDStore: ObservableObject {
     }
 }
 
+struct AgentHUDNumericPresentation: Equatable {
+    let value: Int
+    let tone: AgentHUDTone
+    let isOverrun: Bool
+}
+
+enum AgentHUDNumericStateModel {
+    static func presentation(
+        requestedAt: Date,
+        estimatedMillis: Int,
+        semantic: AgentHUDPresentation,
+        now: Date
+    ) -> AgentHUDNumericPresentation {
+        if semantic.isTerminal {
+            return AgentHUDNumericPresentation(value: 0, tone: semantic.tone, isOverrun: false)
+        }
+
+        let elapsed = max(0, now.timeIntervalSince(requestedAt))
+        let estimate = max(1, Double(estimatedMillis) / 1000)
+        if elapsed < estimate {
+            return AgentHUDNumericPresentation(
+                value: max(1, Int(ceil(estimate - elapsed))),
+                tone: .processing,
+                isOverrun: false
+            )
+        }
+        return AgentHUDNumericPresentation(
+            value: max(0, Int(floor(elapsed - estimate))),
+            tone: .warning,
+            isOverrun: true
+        )
+    }
+}
+
+enum AgentHUDVisualMetrics {
+    static let width: CGFloat = 46
+    static let rowHeight: CGFloat = 24
+    static let rowSpacing: CGFloat = 2
+    static let rightMargin: CGFloat = 18
+    static let topMargin: CGFloat = 32
+    static let maxVisibleCards = 4
+
+    static func height(for cardCount: Int) -> CGFloat {
+        let visible = min(max(0, cardCount), maxVisibleCards)
+        guard visible > 0 else { return rowHeight }
+        return CGFloat(visible) * rowHeight + CGFloat(max(0, visible - 1)) * rowSpacing
+    }
+}
+
 private final class AgentHUDPanel: NSPanel {
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
@@ -207,8 +256,6 @@ private final class AgentHUDPanel: NSPanel {
 final class AgentHUDWindowController: NSWindowController {
     private let store: AgentHUDStore
     private var cardsSubscription: AnyCancellable?
-    private static let width: CGFloat = 304
-    private static let maxVisibleCards = 4
 
     convenience init() {
         self.init(store: .shared)
@@ -217,7 +264,7 @@ final class AgentHUDWindowController: NSWindowController {
     init(store: AgentHUDStore) {
         self.store = store
         let panel = AgentHUDPanel(
-            contentRect: NSRect(x: 0, y: 0, width: Self.width, height: 80),
+            contentRect: NSRect(x: 0, y: 0, width: AgentHUDVisualMetrics.width, height: AgentHUDVisualMetrics.rowHeight),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -257,13 +304,11 @@ final class AgentHUDWindowController: NSWindowController {
 
     private func position(_ panel: NSWindow, cardCount: Int) {
         guard let screen = Self.primaryScreen() else { return }
-        let visibleCount = min(cardCount, Self.maxVisibleCards)
-        let overflowHeight: CGFloat = cardCount > Self.maxVisibleCards ? 24 : 0
-        let height = CGFloat(visibleCount) * 68 + CGFloat(max(0, visibleCount - 1)) * 8 + 16 + overflowHeight
+        let height = AgentHUDVisualMetrics.height(for: cardCount)
         let frame = NSRect(
-            x: screen.visibleFrame.maxX - Self.width - 18,
-            y: screen.visibleFrame.maxY - height - 18,
-            width: Self.width,
+            x: screen.visibleFrame.maxX - AgentHUDVisualMetrics.width - AgentHUDVisualMetrics.rightMargin,
+            y: screen.visibleFrame.maxY - height - AgentHUDVisualMetrics.topMargin,
+            width: AgentHUDVisualMetrics.width,
             height: height
         )
         panel.setFrame(frame, display: true)
@@ -278,19 +323,13 @@ private struct AgentHUDStackView: View {
     @ObservedObject var store: AgentHUDStore
 
     var body: some View {
-        VStack(alignment: .trailing, spacing: 8) {
-            ForEach(Array(store.cards.suffix(4))) { card in
+        VStack(alignment: .trailing, spacing: AgentHUDVisualMetrics.rowSpacing) {
+            ForEach(Array(store.cards.suffix(AgentHUDVisualMetrics.maxVisibleCards))) { card in
                 AgentHUDCardView(card: card)
             }
-            if store.cards.count > 4 {
-                Text("另有 \(store.cards.count - 4) 个编译任务")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 10)
-            }
         }
-        .padding(8)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+        .frame(width: AgentHUDVisualMetrics.width)
+        .frame(maxHeight: .infinity, alignment: .topTrailing)
     }
 }
 
@@ -299,38 +338,23 @@ private struct AgentHUDCardView: View {
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
-            let state = card.presentation(at: context.date)
-            HStack(alignment: .top, spacing: 9) {
-                Circle()
-                    .fill(toneColor(state.tone))
-                    .frame(width: 8, height: 8)
-                    .padding(.top, 4)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(state.title)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(toneColor(state.tone))
-                        .lineLimit(1)
-                    Text(state.detail)
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundStyle(detailColor(state.tone))
-                        .lineLimit(1)
-                }
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .frame(width: 288, height: 68, alignment: .leading)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 13, style: .continuous)
-                    .stroke(toneColor(state.tone).opacity(0.32), lineWidth: 1)
-            }
+            let semantic = card.presentation(at: context.date)
+            let state = AgentHUDNumericStateModel.presentation(
+                requestedAt: card.receipt?.startedDate ?? card.requestedAt,
+                estimatedMillis: card.estimatedMillis,
+                semantic: semantic,
+                now: context.date
+            )
+            Text(String(state.value))
+                .font(.system(size: 14, weight: .semibold, design: .monospaced))
+                .monospacedDigit()
+                .foregroundStyle(toneColor(state.tone))
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+                .frame(width: AgentHUDVisualMetrics.width, height: AgentHUDVisualMetrics.rowHeight, alignment: .center)
         }
     }
 
-    private func detailColor(_ tone: AgentHUDTone) -> Color {
-        tone == .processing ? .green : .secondary
-    }
 
     private func toneColor(_ tone: AgentHUDTone) -> Color {
         switch tone {
