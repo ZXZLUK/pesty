@@ -89,34 +89,48 @@ enum LinkRuleEngine {
         grabLog("browser = \(browserURL.path)")
 
         // Page render buffer for WeChat articles (~2-3s on a normal network),
-        // then a click into the page body moves focus off the address bar
-        // (new tabs start with the URL bar focused — ⌘A would grab the URL),
-        // and finally ⌘A ⌘C ⌘W. Each step aborts if the browser isn't
-        // frontmost anymore — a synthetic ⌘W into another app would close
-        // someone else's tab.
-        let loadWait: TimeInterval = 1.5
+        // then the grab keys 0.1s apart. Steps are driven by a repeating
+        // 0.05s Timer instead of DispatchQueue.main.asyncAfter: asyncAfter
+        // blocks scheduled from the capture flow proved unreliable in this
+        // app (they often never ran), while main-runloop Timers demonstrably
+        // fire. Every step aborts if the browser isn't frontmost anymore —
+        // a synthetic ⌘W into another app would close someone else's tab.
+        let loadWait: TimeInterval = 2.5
         let cmd: CGEventFlags = [.maskCommand]
-        postCombo(0, flags: cmd, at: loadWait, frontmost: browserURL)              // ⌘A select all
-        postCombo(8, flags: cmd, at: loadWait + 0.1, frontmost: browserURL)        // ⌘C copy
-        postCombo(13, flags: cmd, at: loadWait + 0.2, frontmost: browserURL)       // ⌘W close tab
+        let start = Date()
+        let keys: [(key: CGKeyCode, at: TimeInterval, name: String)] = [
+            (0, loadWait, "⌘A"),
+            (8, loadWait + 0.1, "⌘C"),
+            (13, loadWait + 0.2, "⌘W"),
+        ]
+        let appURL = browserURL
+        var fired = 0
+        let stepper = Timer(timeInterval: 0.05, repeats: true) { t in
+            MainActor.assumeIsolated {
+                guard fired < keys.count else { t.invalidate(); return }
+                // 前台已不是浏览器 = 用户切走了 → 放弃剩余序列
+                guard NSWorkspace.shared.frontmostApplication?.bundleURL == appURL else {
+                    grabLog("abort: frontmost left at step \(fired)")
+                    t.invalidate()
+                    return
+                }
+                let now = Date().timeIntervalSince(start)
+                guard now >= keys[fired].at else { return }
+                postCombo(keys[fired].key, flags: [.maskCommand])
+                grabLog("sent \(keys[fired].name)")
+                fired += 1
+            }
+        }
+        RunLoop.main.add(stepper, forMode: .common)
     }
 
-
-    private static func postCombo(_ keyCode: CGKeyCode, flags: CGEventFlags,
-                                  at delay: TimeInterval, frontmost appURL: URL) {
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-            let location = "t+\(Int(delay))s"
-            guard NSWorkspace.shared.frontmostApplication?.bundleURL == appURL else {
-                grabLog("SKIP at \(location) — frontmost is not the browser")
-                return
-            }
-            let src = CGEventSource(stateID: .combinedSessionState)
-            guard let down = CGEvent(keyboardEventSource: src, virtualKey: keyCode, keyDown: true),
-                  let up = CGEvent(keyboardEventSource: src, virtualKey: keyCode, keyDown: false) else { return }
-            down.flags = flags
-            down.post(tap: .cghidEventTap)
-            up.flags = flags
-            up.post(tap: .cghidEventTap)
-        }
+    private static func postCombo(_ keyCode: CGKeyCode, flags: CGEventFlags) {
+        let src = CGEventSource(stateID: .combinedSessionState)
+        guard let down = CGEvent(keyboardEventSource: src, virtualKey: keyCode, keyDown: true),
+              let up = CGEvent(keyboardEventSource: src, virtualKey: keyCode, keyDown: false) else { return }
+        down.flags = flags
+        down.post(tap: .cghidEventTap)
+        up.flags = flags
+        up.post(tap: .cghidEventTap)
     }
 }
