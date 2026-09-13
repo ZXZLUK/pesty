@@ -104,6 +104,10 @@
   第一行 `[[CLIPBAR:v1;...]]` 仅保留为兼容 fallback。三种路径都不会把路由字段送进模型。
 - **结构 fallback**：没有显式 marker 时，至少 2 行独占时间戳（如 `0:07`）的字幕仍会触发。
   普通长文本不再因为超过某个字数就自动调用模型，避免邮件、代码、网页长段落误付费。
+- **YouTube 动作 fallback**：扩展在 macOS 上的动作快捷键是 `Ctrl+Shift+C`。ClipBar 只监听而不拦截
+  这个按键；当它发生在 Arc / Chrome 时，武装一个 15 秒、一次性的 `youtube/transcript/compile`
+  intent。下一次来自同一浏览器的文本捕获会消费该 intent 并按当前 preset 编译；首个文本捕获、
+  浏览器不匹配或超时都会清掉 intent，避免后续普通复制误继承。
 - **正文不污染**：正常 custom-format 与 HTML fallback 都保持 `text/plain` 原样，因此即使
   Agent 关闭，用户把字幕粘贴到其他应用也不会看到触发标记。
 - **幂等**：仍挂在“新捕获”路径；与头条完全相同的紧邻重复沿用现有 dedup 跳过，

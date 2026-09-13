@@ -260,6 +260,24 @@ import Carbon.HIToolbox
         #expect(ClipboardAgentMetadata.metadataFromHTML("<div>clean text</div>") == nil)
         #expect(ClipboardAgentMetadata.metadataFromHTML("<!--CLIPBAR:v1;source=youtube;kind=transcript-->正文") == nil)
     }
+
+    @Test func youtubeShortcutIntentIsOneShotBrowserBoundAndExpiring() {
+        let intent = YouTubeCopyIntent.shared
+        let now = Date(timeIntervalSince1970: 1_000)
+
+        intent.arm(bundleID: "company.thebrowser.Browser", appName: "Arc", now: now)
+        #expect(intent.consume(bundleID: "company.thebrowser.Browser", appName: "Arc", now: now.addingTimeInterval(2))?.source == "youtube")
+        #expect(intent.consume(bundleID: "company.thebrowser.Browser", appName: "Arc", now: now.addingTimeInterval(3)) == nil)
+
+        intent.arm(bundleID: "com.google.Chrome", appName: "Google Chrome", now: now)
+        #expect(intent.consume(bundleID: "com.apple.Safari", appName: "Safari", now: now.addingTimeInterval(1)) == nil)
+
+        intent.arm(bundleID: "company.thebrowser.Browser", appName: "Arc", now: now)
+        #expect(intent.consume(bundleID: "company.thebrowser.Browser", appName: "Arc", now: now.addingTimeInterval(YouTubeCopyIntent.ttl + 1)) == nil)
+
+        intent.arm(bundleID: "com.apple.TextEdit", appName: "TextEdit", now: now)
+        #expect(intent.consume(bundleID: "com.apple.TextEdit", appName: "TextEdit", now: now.addingTimeInterval(1)) == nil)
+    }
 }
 
 // MARK: - 拼音索引

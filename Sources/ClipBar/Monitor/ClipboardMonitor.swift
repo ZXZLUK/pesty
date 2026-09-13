@@ -24,6 +24,7 @@ final class ClipboardMonitor {
 
     func start() {
         timer?.invalidate()
+        YouTubeCopyIntent.shared.start()
         let t = Timer(timeInterval: Self.pollInterval, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.poll() }
         }
@@ -31,7 +32,11 @@ final class ClipboardMonitor {
         timer = t
     }
 
-    func stop() { timer?.invalidate(); timer = nil }
+    func stop() {
+        timer?.invalidate()
+        timer = nil
+        YouTubeCopyIntent.shared.stop()
+    }
 
     func togglePause() { isPaused.toggle() }
 
@@ -77,11 +82,19 @@ final class ClipboardMonitor {
             || Settings.shared.isIgnoringSourceApp(AppController.shared.lastActiveApp?.bundleIdentifier)
         guard !ignored else { return }
 
+        let shortcutMetadata: ClipboardAgentMetadata?
+        if Settings.shared.subtitleTriggerEnabled,
+           types.contains(.string) || types.contains(.rtf) {
+            shortcutMetadata = YouTubeCopyIntent.shared.consume(bundleID: bundleID, appName: appName)
+        } else {
+            shortcutMetadata = nil
+        }
         let imagesDir = ClipboardStore.shared.imagesDirectory
         captureQueue.async {
             guard let item = Self.extractPayload(types: types,
                                                  bundleID: bundleID,
                                                  appName: appName,
+                                                 shortcutMetadata: shortcutMetadata,
                                                  imagesDir: imagesDir) else { return }
             // A newer copy landing mid-extraction means these reads are of a
             // superseded generation; drop and let the next poll take the fresh one.
@@ -98,6 +111,7 @@ final class ClipboardMonitor {
     private nonisolated static func extractPayload(types: [NSPasteboard.PasteboardType],
                                                    bundleID: String?,
                                                    appName: String?,
+                                                   shortcutMetadata: ClipboardAgentMetadata?,
                                                    imagesDir: URL) -> ClipItem? {
         let pasteboard = NSPasteboard.general
 
@@ -140,7 +154,7 @@ final class ClipboardMonitor {
         if let string = pasteboard.string(forType: .string), !string.isEmpty {
             let routed = ClipboardAgentMetadata.stripLeadingMarker(from: string)
             guard !routed.text.isEmpty else { return nil }
-            let metadata = semanticMetadata ?? htmlMetadata ?? routed.metadata
+            let metadata = semanticMetadata ?? htmlMetadata ?? routed.metadata ?? shortcutMetadata
             let cleanRTF = metadata == nil ? rtf : nil
             let trimmed = routed.text.trimmingCharacters(in: .whitespacesAndNewlines)
             let type: ClipType
