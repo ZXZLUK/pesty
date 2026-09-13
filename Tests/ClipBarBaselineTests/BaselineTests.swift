@@ -233,6 +233,16 @@ import Carbon.HIToolbox
         #expect(AgentTrigger.looksLikeCompilable("明确声明的字幕", metadata: route))
     }
 
+    @Test func explicitCompileIntentSurvivesContentDedup() {
+        let route = ClipboardAgentMetadata(v: 1, source: "youtube", kind: "transcript", intent: "compile")
+        let routed = ClipItem(type: .text, text: "与历史完全相同的正文", agentMetadata: route)
+        let ordinary = ClipItem(type: .text, text: "与历史完全相同的正文")
+        let image = ClipItem(type: .image, imageHash: "same")
+        #expect(AgentTrigger.shouldReevaluateDuplicate(routed))
+        #expect(!AgentTrigger.shouldReevaluateDuplicate(ordinary))
+        #expect(!AgentTrigger.shouldReevaluateDuplicate(image))
+    }
+
     @Test func semanticMarkerIsRemovedBeforeCompilation() {
         let raw = "[[CLIPBAR:v1;source=youtube;kind=transcript;intent=compile]]\n0:07\n字幕正文"
         let parsed = ClipboardAgentMetadata.stripLeadingMarker(from: raw)

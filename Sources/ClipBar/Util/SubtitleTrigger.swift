@@ -25,6 +25,15 @@ enum AgentTrigger {
         return looksLikeSubtitle(text)
     }
 
+    /// Content dedup must not erase an explicit producer intent. A fresh YouTube
+    /// programmatic copy may be byte-identical to an older history item, but it is
+    /// still a new compile request. Ordinary duplicate captures keep the old
+    /// no-side-effect behavior.
+    static func shouldReevaluateDuplicate(_ item: ClipItem) -> Bool {
+        guard item.type == .text || item.type == .richText else { return false }
+        return item.agentMetadata?.requestsCompile == true
+    }
+
     static func outputMarkerURL(for text: String,
                                 tempDirectory: URL = FileManager.default.temporaryDirectory) -> URL {
         let digest = SHA256.hash(data: Data(text.utf8))
