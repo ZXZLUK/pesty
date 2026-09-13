@@ -226,10 +226,28 @@ import Carbon.HIToolbox
         #expect(!AgentTrigger.consumeOutputMarkerIfPresent(text, tempDirectory: dir, nowMilliseconds: 1500))
     }
 
-    @Test func longTextIsCompilableButShortTextIsNot() {
-        let longText = String(repeating: "这是一段需要被编译的文章内容。", count: 50)
-        #expect(AgentTrigger.looksLikeCompilable(longText))
-        #expect(!AgentTrigger.looksLikeCompilable("只是随手复制的一小段文字"))
+    @Test func genericLongTextRequiresExplicitRoutingIntent() {
+        let longText = String(repeating: "这是一段普通长文章。", count: 100)
+        #expect(!AgentTrigger.looksLikeCompilable(longText))
+        let route = ClipboardAgentMetadata(v: 1, source: "youtube", kind: "transcript", intent: "compile")
+        #expect(AgentTrigger.looksLikeCompilable("明确声明的字幕", metadata: route))
+    }
+
+    @Test func semanticMarkerIsRemovedBeforeCompilation() {
+        let raw = "[[CLIPBAR:v1;source=youtube;kind=transcript;intent=compile]]\n0:07\n字幕正文"
+        let parsed = ClipboardAgentMetadata.stripLeadingMarker(from: raw)
+        #expect(parsed.metadata == ClipboardAgentMetadata(v: 1, source: "youtube", kind: "transcript", intent: "compile"))
+        #expect(parsed.text == "0:07\n字幕正文")
+        let invalid = ClipboardAgentMetadata.stripLeadingMarker(from: "[[CLIPBAR:v1;source=youtube;kind=transcript]]\n正文")
+        #expect(invalid.metadata == nil)
+        #expect(invalid.text.contains("CLIPBAR"))
+    }
+
+    @Test func webCustomFormatMapParserIsStrict() throws {
+        let good = try #require("{\"application/x-clipbar-agent+json\":\"org.w3.web-custom-format.type-0\"}".data(using: .utf8))
+        #expect(ClipboardAgentMetadata.mappedPasteboardType(fromWebCustomFormatMap: good) == "org.w3.web-custom-format.type-0")
+        let bad = try #require("{\"application/x-clipbar-agent+json\":\"public.utf8-plain-text\"}".data(using: .utf8))
+        #expect(ClipboardAgentMetadata.mappedPasteboardType(fromWebCustomFormatMap: bad) == nil)
     }
 }
 

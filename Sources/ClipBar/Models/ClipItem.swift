@@ -12,6 +12,8 @@ struct ClipItem: Identifiable, Codable, Equatable {
 
     var sourceBundleID: String?
     var sourceAppName: String?
+    /// Ephemeral routing signal from the clipboard producer; never persisted.
+    var agentMetadata: ClipboardAgentMetadata?
 
     var customTitle: String?
     var createdAt: Date
@@ -37,6 +39,7 @@ struct ClipItem: Identifiable, Codable, Equatable {
          colorHex: String? = nil,
          sourceBundleID: String? = nil,
          sourceAppName: String? = nil,
+         agentMetadata: ClipboardAgentMetadata? = nil,
          customTitle: String? = nil,
          createdAt: Date = Date(),
          textTruncated: Bool = false,
@@ -51,6 +54,7 @@ struct ClipItem: Identifiable, Codable, Equatable {
         self.colorHex = colorHex
         self.sourceBundleID = sourceBundleID
         self.sourceAppName = sourceAppName
+        self.agentMetadata = agentMetadata
         self.customTitle = customTitle
         self.createdAt = createdAt
         self.textTruncated = textTruncated
@@ -75,6 +79,7 @@ struct ClipItem: Identifiable, Codable, Equatable {
         colorHex = try c.decodeIfPresent(String.self, forKey: .colorHex)
         sourceBundleID = try c.decodeIfPresent(String.self, forKey: .sourceBundleID)
         sourceAppName = try c.decodeIfPresent(String.self, forKey: .sourceAppName)
+        agentMetadata = nil
         customTitle = try c.decodeIfPresent(String.self, forKey: .customTitle)
         createdAt = try c.decode(Date.self, forKey: .createdAt)
         textTruncated = try c.decodeIfPresent(Bool.self, forKey: .textTruncated) ?? false

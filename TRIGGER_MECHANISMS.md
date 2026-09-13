@@ -97,8 +97,13 @@
 - **编译形态**：v1 固定四种稳定 ID：`quick`（快速理解）、`spoken`（口播·平实）、
   `humorous`（口播·轻幽默）、`judgments`（20 条判断）。选择会持久化，并通过 `$2`
   传给 `pi-podcast-compiler`，不是只改变 UI 文案。
-- **路由**：`AgentTrigger` 接受两类输入：至少 2 行独占时间戳的字幕；或至少 500 个
-  非空白字符的长文本。短文本不自动调用模型，避免日常复制产生付费副作用。
+- **语义路由 v1**：producer 可把严格 marker
+  `[[CLIPBAR:v1;source=youtube;kind=transcript;intent=compile]]` 放在复制文本第一行。
+  ClipBar 捕获后先解析并剥掉 marker，再把干净正文存入历史并送给编译器；marker 不进入模型。
+- **结构 fallback**：没有显式 marker 时，至少 2 行独占时间戳（如 `0:07`）的字幕仍会触发。
+  普通长文本不再因为超过某个字数就自动调用模型，避免邮件、代码、网页长段落误付费。
+- **下一层协议**：代码中保留了 Chromium Web Custom Format 的严格映射解析器，供未来把
+  metadata 从正文中完全分离；当前运行时 v1 以首行 marker 为确定性接口。
 - **幂等**：仍挂在“新捕获”路径；与头条完全相同的紧邻重复沿用现有 dedup 跳过，
   不会重复触发 Agent。
 - **默认桥接**：`subtitleScript` key 为兼容历史继续保留，但默认脚本现在是

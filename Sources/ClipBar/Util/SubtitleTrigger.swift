@@ -8,7 +8,6 @@ import Foundation
 enum AgentTrigger {
 
     private static let minTimestampLines = 2
-    private static let minLongTextCharacters = 500
     private static let outputMarkerTTLMilliseconds: Double = 10 * 60 * 1000
     /// 时间轴行：整行只有 0:07 / 1:02:03 形式的时间戳（YouTube 转录稿特征）
     private static let timestampLine = try? NSRegularExpression(
@@ -19,12 +18,11 @@ enum AgentTrigger {
         return ts.numberOfMatches(in: text, range: NSRange(text.startIndex..., in: text)) >= minTimestampLines
     }
 
-    static func looksLikeCompilable(_ text: String) -> Bool {
-        if looksLikeSubtitle(text) { return true }
-        let compactCount = text.unicodeScalars.reduce(into: 0) { count, scalar in
-            if !CharacterSet.whitespacesAndNewlines.contains(scalar) { count += 1 }
+    static func looksLikeCompilable(_ text: String, metadata: ClipboardAgentMetadata? = nil) -> Bool {
+        if metadata?.requestsCompile == true {
+            return !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
-        return compactCount >= minLongTextCharacters
+        return looksLikeSubtitle(text)
     }
 
     static func outputMarkerURL(for text: String,
@@ -63,7 +61,7 @@ enum AgentTrigger {
         let code = Settings.shared.subtitleScript
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !code.isEmpty else { return }
-        guard looksLikeCompilable(text) else { return }
+        guard looksLikeCompilable(text, metadata: item.agentMetadata) else { return }
         run(code, text: text, preset: Settings.shared.agentCompilerPreset)
     }
 

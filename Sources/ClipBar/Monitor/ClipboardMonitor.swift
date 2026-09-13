@@ -128,16 +128,19 @@ final class ClipboardMonitor {
 
         let rtf = pasteboard.data(forType: .rtf)
         if let string = pasteboard.string(forType: .string), !string.isEmpty {
-            let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+            let routed = ClipboardAgentMetadata.stripLeadingMarker(from: string)
+            guard !routed.text.isEmpty else { return nil }
+            let cleanRTF = routed.metadata == nil ? rtf : nil
+            let trimmed = routed.text.trimmingCharacters(in: .whitespacesAndNewlines)
             let type: ClipType
-            if rtf != nil {
+            if cleanRTF != nil {
                 type = .richText
             } else if Self.isLink(trimmed) {
                 type = .link
             } else {
                 type = .text
             }
-            var item = ClipItem(type: type, text: string, rtfData: rtf)
+            var item = ClipItem(type: type, text: routed.text, rtfData: cleanRTF, agentMetadata: routed.metadata)
             decorate(&item)
             return item
         }
