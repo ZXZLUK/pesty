@@ -4,6 +4,8 @@ struct ClipboardAgentMetadata: Codable, Equatable {
     static let mimeType = "application/x-clipbar-agent+json"
     static let webCustomFormatMapType = "org.w3.web-custom-format.map"
     static let htmlCommentPrefix = "<!--CLIPBAR:v1;"
+    static let chromiumSourceURLType = "org.chromium.source-url"
+    static let chromiumSourceFrameTokenType = "org.chromium.internal.source-rfh-token"
 
     let v: Int
     let source: String
@@ -50,6 +52,24 @@ struct ClipboardAgentMetadata: Codable, Equatable {
               let end = prefix[start.lowerBound...].range(of: "-->") else { return nil }
         let marker = String(prefix[start.lowerBound..<end.lowerBound].dropFirst(4))
         return parseCompactFields(marker)
+    }
+
+    /// Chromium exposes the originating page URL on programmatic clipboard writes.
+    /// The YouTube subtitle extension writes plain text only, so we require both Chromium
+    /// provenance types and reject rich-text/html payloads. The URL is used only for routing
+    /// and is never persisted.
+    static func metadataFromChromiumYouTubePlainText(typeNames: Set<String>, sourceURL: String?) -> ClipboardAgentMetadata? {
+        guard typeNames.contains(chromiumSourceURLType),
+              typeNames.contains(chromiumSourceFrameTokenType),
+              typeNames.contains("public.utf8-plain-text") || typeNames.contains("NSStringPboardType"),
+              !typeNames.contains("public.html"),
+              !typeNames.contains("public.rtf"),
+              let sourceURL, sourceURL.count <= 4_096,
+              let url = URL(string: sourceURL),
+              let scheme = url.scheme?.lowercased(), ["http", "https"].contains(scheme),
+              let host = url.host?.lowercased(),
+              host == "youtube.com" || host.hasSuffix(".youtube.com") else { return nil }
+        return ClipboardAgentMetadata(v: 1, source: "youtube", kind: "transcript", intent: "compile")
     }
 
     private static func parseCompactFields(_ body: String) -> ClipboardAgentMetadata? {

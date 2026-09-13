@@ -261,22 +261,29 @@ import Carbon.HIToolbox
         #expect(ClipboardAgentMetadata.metadataFromHTML("<!--CLIPBAR:v1;source=youtube;kind=transcript-->正文") == nil)
     }
 
-    @Test func youtubeShortcutIntentIsOneShotBrowserBoundAndExpiring() {
-        let intent = YouTubeCopyIntent.shared
-        let now = Date(timeIntervalSince1970: 1_000)
-
-        intent.arm(bundleID: "company.thebrowser.Browser", appName: "Arc", now: now)
-        #expect(intent.consume(bundleID: "company.thebrowser.Browser", appName: "Arc", now: now.addingTimeInterval(2))?.source == "youtube")
-        #expect(intent.consume(bundleID: "company.thebrowser.Browser", appName: "Arc", now: now.addingTimeInterval(3)) == nil)
-
-        intent.arm(bundleID: "com.google.Chrome", appName: "Google Chrome", now: now)
-        #expect(intent.consume(bundleID: "com.apple.Safari", appName: "Safari", now: now.addingTimeInterval(1)) == nil)
-
-        intent.arm(bundleID: "company.thebrowser.Browser", appName: "Arc", now: now)
-        #expect(intent.consume(bundleID: "company.thebrowser.Browser", appName: "Arc", now: now.addingTimeInterval(YouTubeCopyIntent.ttl + 1)) == nil)
-
-        intent.arm(bundleID: "com.apple.TextEdit", appName: "TextEdit", now: now)
-        #expect(intent.consume(bundleID: "com.apple.TextEdit", appName: "TextEdit", now: now.addingTimeInterval(1)) == nil)
+    @Test func chromiumYouTubeProgrammaticPlainTextRoutesWithoutShortcutMonitoring() {
+        let programmaticTypes: Set<String> = [
+            "public.utf8-plain-text",
+            "NSStringPboardType",
+            "org.chromium.internal.source-rfh-token",
+            "org.chromium.source-url",
+        ]
+        #expect(ClipboardAgentMetadata.metadataFromChromiumYouTubePlainText(
+            typeNames: programmaticTypes,
+            sourceURL: "https://www.youtube.com/watch?v=test"
+        )?.source == "youtube")
+        #expect(ClipboardAgentMetadata.metadataFromChromiumYouTubePlainText(
+            typeNames: programmaticTypes.union(["public.html"]),
+            sourceURL: "https://www.youtube.com/watch?v=test"
+        ) == nil)
+        #expect(ClipboardAgentMetadata.metadataFromChromiumYouTubePlainText(
+            typeNames: programmaticTypes,
+            sourceURL: "https://example.com/watch?v=test"
+        ) == nil)
+        #expect(ClipboardAgentMetadata.metadataFromChromiumYouTubePlainText(
+            typeNames: programmaticTypes.subtracting(["org.chromium.internal.source-rfh-token"]),
+            sourceURL: "https://www.youtube.com/watch?v=test"
+        ) == nil)
     }
 }
 
