@@ -290,6 +290,12 @@ import Carbon.HIToolbox
         )?.source == "youtube")
         #expect(ClipboardAgentMetadata.metadataFromChromiumYouTubePlainText(
             typeNames: programmaticTypes,
+            sourceURL: "opaque-source-token",
+            sourceBundleID: "company.thebrowser.Browser",
+            sourceAppName: "Arc"
+        )?.source == "youtube")
+        #expect(ClipboardAgentMetadata.metadataFromChromiumYouTubePlainText(
+            typeNames: programmaticTypes,
             sourceURL: nil,
             sourceBundleID: "com.apple.Safari",
             sourceAppName: "Safari"

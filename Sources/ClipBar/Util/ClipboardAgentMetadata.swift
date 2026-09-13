@@ -69,13 +69,17 @@ struct ClipboardAgentMetadata: Codable, Equatable {
               !typeNames.contains("public.rtf") else { return nil }
 
         let rawURL = sourceURL?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if !rawURL.isEmpty {
-            guard rawURL.count <= 4_096,
-                  let url = URL(string: rawURL),
-                  let scheme = url.scheme?.lowercased(), ["http", "https"].contains(scheme),
-                  let host = url.host?.lowercased(),
-                  host == "youtube.com" || host.hasSuffix(".youtube.com") else { return nil }
+        if !rawURL.isEmpty,
+           rawURL.count <= 4_096,
+           let url = URL(string: rawURL),
+           let scheme = url.scheme?.lowercased(), ["http", "https"].contains(scheme),
+           let host = url.host?.lowercased() {
+            guard host == "youtube.com" || host.hasSuffix(".youtube.com") else { return nil }
         } else {
+            // Arc may expose the source-url pasteboard type while returning an opaque or
+            // non-URL value cross-process. Treat that the same as an unreadable value,
+            // but only when the full Chromium programmatic-write fingerprint and browser
+            // identity already passed the guards above.
             guard isSupportedChromiumBrowser(bundleID: sourceBundleID, appName: sourceAppName) else { return nil }
         }
         return ClipboardAgentMetadata(v: 1, source: "youtube", kind: "transcript", intent: "compile")
