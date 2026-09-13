@@ -126,11 +126,22 @@ final class ClipboardMonitor {
             }
         }
 
+        let semanticMetadata: ClipboardAgentMetadata? = {
+            let mapType = NSPasteboard.PasteboardType(ClipboardAgentMetadata.webCustomFormatMapType)
+            guard let mapData = pasteboard.data(forType: mapType),
+                  let payloadType = ClipboardAgentMetadata.mappedPasteboardType(fromWebCustomFormatMap: mapData),
+                  let payload = pasteboard.data(forType: NSPasteboard.PasteboardType(payloadType)) else {
+                return nil
+            }
+            return ClipboardAgentMetadata.decodeRoutingPayload(payload)
+        }()
+        let htmlMetadata = pasteboard.string(forType: .html).flatMap(ClipboardAgentMetadata.metadataFromHTML)
         let rtf = pasteboard.data(forType: .rtf)
         if let string = pasteboard.string(forType: .string), !string.isEmpty {
             let routed = ClipboardAgentMetadata.stripLeadingMarker(from: string)
             guard !routed.text.isEmpty else { return nil }
-            let cleanRTF = routed.metadata == nil ? rtf : nil
+            let metadata = semanticMetadata ?? htmlMetadata ?? routed.metadata
+            let cleanRTF = metadata == nil ? rtf : nil
             let trimmed = routed.text.trimmingCharacters(in: .whitespacesAndNewlines)
             let type: ClipType
             if cleanRTF != nil {
@@ -140,7 +151,7 @@ final class ClipboardMonitor {
             } else {
                 type = .text
             }
-            var item = ClipItem(type: type, text: routed.text, rtfData: cleanRTF, agentMetadata: routed.metadata)
+            var item = ClipItem(type: type, text: routed.text, rtfData: cleanRTF, agentMetadata: metadata)
             decorate(&item)
             return item
         }

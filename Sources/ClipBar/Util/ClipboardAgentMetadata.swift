@@ -3,6 +3,7 @@ import Foundation
 struct ClipboardAgentMetadata: Codable, Equatable {
     static let mimeType = "application/x-clipbar-agent+json"
     static let webCustomFormatMapType = "org.w3.web-custom-format.map"
+    static let htmlCommentPrefix = "<!--CLIPBAR:v1;"
 
     let v: Int
     let source: String
@@ -36,27 +37,38 @@ struct ClipboardAgentMetadata: Codable, Equatable {
         let parts = text.split(separator: "\n", maxSplits: 1, omittingEmptySubsequences: false)
         guard let firstRaw = parts.first else { return (text, nil) }
         let first = String(firstRaw).trimmingCharacters(in: CharacterSet(charactersIn: "\r"))
-        guard first.hasPrefix("[[CLIPBAR:v1;"), first.hasSuffix("]]"), first.count <= 256 else {
+        guard first.hasPrefix("[[CLIPBAR:v1;"), first.hasSuffix("]]"), first.count <= 256,
+              let metadata = parseCompactFields(String(first.dropFirst(2).dropLast(2))) else {
             return (text, nil)
         }
-        let body = String(first.dropFirst(2).dropLast(2))
+        return (parts.count == 2 ? String(parts[1]) : "", metadata)
+    }
+
+    static func metadataFromHTML(_ html: String) -> ClipboardAgentMetadata? {
+        let prefix = html.prefix(512)
+        guard let start = prefix.range(of: htmlCommentPrefix),
+              let end = prefix[start.lowerBound...].range(of: "-->") else { return nil }
+        let marker = String(prefix[start.lowerBound..<end.lowerBound].dropFirst(4))
+        return parseCompactFields(marker)
+    }
+
+    private static func parseCompactFields(_ body: String) -> ClipboardAgentMetadata? {
         let fields = body.split(separator: ";", omittingEmptySubsequences: false).map(String.init)
-        guard fields.first == "CLIPBAR:v1" else { return (text, nil) }
+        guard fields.first == "CLIPBAR:v1" else { return nil }
         var values: [String: String] = [:]
         for field in fields.dropFirst() {
             let pair = field.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
-            guard pair.count == 2 else { return (text, nil) }
+            guard pair.count == 2 else { return nil }
             let key = String(pair[0])
             let value = String(pair[1])
-            guard ["source", "kind", "intent"].contains(key), values[key] == nil else { return (text, nil) }
+            guard ["source", "kind", "intent"].contains(key), values[key] == nil else { return nil }
             values[key] = value
         }
         guard let source = values["source"], let kind = values["kind"], let intent = values["intent"] else {
-            return (text, nil)
+            return nil
         }
         let metadata = ClipboardAgentMetadata(v: 1, source: source, kind: kind, intent: intent)
-        guard metadata.requestsCompile else { return (text, nil) }
-        return (parts.count == 2 ? String(parts[1]) : "", metadata)
+        return metadata.requestsCompile ? metadata : nil
     }
 
     private static func isValidToken(_ value: String) -> Bool {

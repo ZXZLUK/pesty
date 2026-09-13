@@ -97,13 +97,15 @@
 - **编译形态**：v1 固定四种稳定 ID：`quick`（快速理解）、`spoken`（口播·平实）、
   `humorous`（口播·轻幽默）、`judgments`（20 条判断）。选择会持久化，并通过 `$2`
   传给 `pi-podcast-compiler`，不是只改变 UI 文案。
-- **语义路由 v1**：producer 可把严格 marker
-  `[[CLIPBAR:v1;source=youtube;kind=transcript;intent=compile]]` 放在复制文本第一行。
-  ClipBar 捕获后先解析并剥掉 marker，再把干净正文存入历史并送给编译器；marker 不进入模型。
+- **语义路由 v1**：首选 Chromium Web Custom Clipboard Format：producer 保持 `text/plain`
+  为干净正文，同时写 `web application/x-clipbar-agent+json`。macOS 上 ClipBar 从
+  `org.w3.web-custom-format.map` 找到对应 `type-N` payload 并严格解析。Arc 若拒绝 async custom
+  format，可在 `text/html` 前 512 字节放严格的不可见 `<!--CLIPBAR:v1;...-->` comment；
+  第一行 `[[CLIPBAR:v1;...]]` 仅保留为兼容 fallback。三种路径都不会把路由字段送进模型。
 - **结构 fallback**：没有显式 marker 时，至少 2 行独占时间戳（如 `0:07`）的字幕仍会触发。
   普通长文本不再因为超过某个字数就自动调用模型，避免邮件、代码、网页长段落误付费。
-- **下一层协议**：代码中保留了 Chromium Web Custom Format 的严格映射解析器，供未来把
-  metadata 从正文中完全分离；当前运行时 v1 以首行 marker 为确定性接口。
+- **正文不污染**：正常 custom-format 与 HTML fallback 都保持 `text/plain` 原样，因此即使
+  Agent 关闭，用户把字幕粘贴到其他应用也不会看到触发标记。
 - **幂等**：仍挂在“新捕获”路径；与头条完全相同的紧邻重复沿用现有 dedup 跳过，
   不会重复触发 Agent。
 - **默认桥接**：`subtitleScript` key 为兼容历史继续保留，但默认脚本现在是

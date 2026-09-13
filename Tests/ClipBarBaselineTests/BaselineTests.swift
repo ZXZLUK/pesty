@@ -248,6 +248,17 @@ import Carbon.HIToolbox
         #expect(ClipboardAgentMetadata.mappedPasteboardType(fromWebCustomFormatMap: good) == "org.w3.web-custom-format.type-0")
         let bad = try #require("{\"application/x-clipbar-agent+json\":\"public.utf8-plain-text\"}".data(using: .utf8))
         #expect(ClipboardAgentMetadata.mappedPasteboardType(fromWebCustomFormatMap: bad) == nil)
+        let payload = try #require("{\"v\":1,\"source\":\"youtube\",\"kind\":\"transcript\",\"intent\":\"compile\"}".data(using: .utf8))
+        #expect(ClipboardAgentMetadata.decodeRoutingPayload(payload)?.source == "youtube")
+    }
+
+    @Test func htmlFallbackMetadataIsInvisibleAndStrict() {
+        let html = "<!--CLIPBAR:v1;source=youtube;kind=transcript;intent=compile--><div>clean text</div>"
+        #expect(ClipboardAgentMetadata.metadataFromHTML(html)?.source == "youtube")
+        let wrapped = "<meta charset=\"utf-8\"><!--CLIPBAR:v1;source=youtube;kind=transcript;intent=compile--><div>clean text</div>"
+        #expect(ClipboardAgentMetadata.metadataFromHTML(wrapped)?.kind == "transcript")
+        #expect(ClipboardAgentMetadata.metadataFromHTML("<div>clean text</div>") == nil)
+        #expect(ClipboardAgentMetadata.metadataFromHTML("<!--CLIPBAR:v1;source=youtube;kind=transcript-->正文") == nil)
     }
 }
 
