@@ -289,7 +289,7 @@ final class Settings {
             Keys.lowerHalfDismiss: true,
             Keys.smartFocusInput: true,
             Keys.subtitleTriggerEnabled: true,
-            Keys.subtitleScript: "",
+            Keys.subtitleScript: #"printf '%s' "$1" | /usr/local/bin/node "$HOME/projects/2026/pi-podcast-compiler/clip-compile.mjs" --stdin"#,
             Keys.showMenuBarIcon: true,
             Keys.onboarded: false
         ])

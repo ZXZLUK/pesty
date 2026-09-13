@@ -35,6 +35,11 @@ enum SubtitleTrigger {
         task.arguments = ["-c", code, "zsh", text]
         task.standardOutput = FileHandle.nullDevice
         task.standardError = FileHandle.nullDevice
+        task.terminationHandler = { process in
+            if process.terminationStatus != 0 {
+                NSLog("SubtitleTrigger: user script exited with status %d", process.terminationStatus)
+            }
+        }
         do {
             try task.run()
         } catch {
