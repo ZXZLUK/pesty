@@ -181,11 +181,20 @@ private struct GeneralSettings: View {
                 }
             }
 
-            Section(L10n.t("Subtitle Trigger", "字幕触发")) {
-                Toggle(L10n.t("Detect subtitles and run script", "识别字幕并自动运行脚本"), isOn: $settings.subtitleTriggerEnabled)
+            Section(L10n.t("Clipboard Agent", "剪贴板 Agent")) {
+                Toggle(L10n.t("Enable Podcast Agent", "启用 Podcast Agent"), isOn: $settings.subtitleTriggerEnabled)
                 if settings.subtitleTriggerEnabled {
+                    Picker(L10n.t("Compile as", "编译形态"), selection: $settings.agentCompilerPreset) {
+                        ForEach(AgentCompilerPreset.allCases) { preset in
+                            Text(L10n.t(preset.title, preset.titleZH)).tag(preset)
+                        }
+                    }
+                    Text(L10n.t("Eligible subtitles and long text are sent through the local compiler to its configured MiniMax model service.",
+                                "命中的字幕和长文本会经本地编译器发送到其配置的 MiniMax 模型服务。"))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(L10n.t("zsh script — the full subtitle text arrives as $1", "zsh 脚本——字幕全文作为 $1 传入"))
+                        Text(L10n.t("zsh bridge — $1 = captured text, $2 = preset", "zsh 桥接——$1 = 捕获全文，$2 = preset"))
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                         TextEditor(text: $settings.subtitleScript)

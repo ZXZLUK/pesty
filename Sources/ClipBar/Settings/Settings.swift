@@ -75,6 +75,33 @@ enum HistoryRetentionMode: String, CaseIterable, Identifiable {
     }
 }
 
+enum AgentCompilerPreset: String, CaseIterable, Identifiable {
+    case quick
+    case spoken
+    case humorous
+    case judgments
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .quick: return "Quick Understanding"
+        case .spoken: return "Spoken · Plain"
+        case .humorous: return "Spoken · Light Humor"
+        case .judgments: return "20 Judgments"
+        }
+    }
+
+    var titleZH: String {
+        switch self {
+        case .quick: return "快速理解"
+        case .spoken: return "口播·平实"
+        case .humorous: return "口播·轻幽默"
+        case .judgments: return "20 条判断"
+        }
+    }
+}
+
 @Observable
 @MainActor
 final class Settings {
@@ -105,6 +132,7 @@ final class Settings {
         static let smartFocusInput = "smartFocusInput"
         static let subtitleTriggerEnabled = "subtitleTriggerEnabled"
         static let subtitleScript = "subtitleScript"
+        static let agentCompilerPreset = "agentCompilerPreset"
         static let linkRules = "linkRules"
         static let showMenuBarIcon = "showMenuBarIcon"
         static let onboarded = "onboarded"
@@ -239,15 +267,22 @@ final class Settings {
         didSet { guard isLoaded else { return }; persist() }
     }
 
-    /// 字幕自动处理：捕获的文本具备字幕特征（≥2 行时间轴）时，自动运行
-    /// 用户脚本（字幕全文作为 $1）。总开关——不需要时整体关闭。
+    /// Clipboard Agent 总开关。key 名沿用 subtitleTriggerEnabled 只是为了兼容
+    /// 已有用户状态；当前语义覆盖时间轴字幕和长文本。
     var subtitleTriggerEnabled: Bool {
         didSet { guard isLoaded else { return }; d.set(subtitleTriggerEnabled, forKey: Keys.subtitleTriggerEnabled) }
     }
 
-    /// 字幕处理脚本（zsh，$1 = 字幕全文），内联编辑。
+    /// Clipboard Agent zsh bridge（$1 = 捕获全文，$2 = preset）。
+    /// key 名保留 subtitleScript 以兼容旧配置。
     var subtitleScript: String {
         didSet { guard isLoaded else { return }; d.set(subtitleScript, forKey: Keys.subtitleScript) }
+    }
+
+    /// 当前 Clipboard Agent 的编译形态。总开关仍复用旧 subtitleTriggerEnabled key，
+    /// 保证升级后不改变 owner 已保存的开/关状态。
+    var agentCompilerPreset: AgentCompilerPreset {
+        didSet { guard isLoaded else { return }; d.set(agentCompilerPreset.rawValue, forKey: Keys.agentCompilerPreset) }
     }
 
     private func persist() {
@@ -289,7 +324,8 @@ final class Settings {
             Keys.lowerHalfDismiss: true,
             Keys.smartFocusInput: true,
             Keys.subtitleTriggerEnabled: true,
-            Keys.subtitleScript: #"printf '%s' "$1" | /usr/local/bin/node "$HOME/projects/2026/pi-podcast-compiler/clip-compile.mjs" --stdin"#,
+            Keys.subtitleScript: #"printf '%s' "$1" | /usr/local/bin/node "$HOME/projects/2026/pi-podcast-compiler/clip-compile.mjs" --stdin --preset "$2""#,
+            Keys.agentCompilerPreset: AgentCompilerPreset.quick.rawValue,
             Keys.showMenuBarIcon: true,
             Keys.onboarded: false
         ])
@@ -339,7 +375,16 @@ final class Settings {
         lowerHalfDismiss = d.bool(forKey: Keys.lowerHalfDismiss)
         smartFocusInput = d.bool(forKey: Keys.smartFocusInput)
         subtitleTriggerEnabled = d.bool(forKey: Keys.subtitleTriggerEnabled)
-        subtitleScript = d.string(forKey: Keys.subtitleScript) ?? ""
+        let legacyCompilerBridge = #"printf '%s' "$1" | /usr/local/bin/node "$HOME/projects/2026/pi-podcast-compiler/clip-compile.mjs" --stdin"#
+        let presetCompilerBridge = #"printf '%s' "$1" | /usr/local/bin/node "$HOME/projects/2026/pi-podcast-compiler/clip-compile.mjs" --stdin --preset "$2""#
+        let savedCompilerBridge = d.string(forKey: Keys.subtitleScript) ?? presetCompilerBridge
+        if savedCompilerBridge == legacyCompilerBridge {
+            subtitleScript = presetCompilerBridge
+            d.set(presetCompilerBridge, forKey: Keys.subtitleScript)
+        } else {
+            subtitleScript = savedCompilerBridge
+        }
+        agentCompilerPreset = AgentCompilerPreset(rawValue: d.string(forKey: Keys.agentCompilerPreset) ?? "") ?? .quick
         if let data = d.data(forKey: Keys.linkRules),
            let decoded = try? JSONDecoder().decode([LinkRule].self, from: data) {
             linkRules = decoded

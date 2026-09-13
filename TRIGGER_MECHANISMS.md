@@ -90,18 +90,27 @@
 - **已知代价**：进程被 SIGKILL 时监听来不及注销，系统短暂等待死监听器
   后自动回收（短暂输入发涩，自动恢复）。
 
-## 9. 字幕触发器 → 本地播客编译器
+## 9. Clipboard Agent → 本地内容编译器
 
-- **解决什么**：捕获到 YouTube/播客时间轴字幕后，直接在后台交给本地
-  `pi-podcast-compiler`，完成 MiniMax 编译后把约 1000 字中文口述稿写回剪贴板。
-- **判定与幂等**：`SubtitleTrigger` 只认至少 2 行独占时间戳（如 `0:07`）；
-  仍挂在“新捕获”路径，紧邻相同内容沿用现有幂等跳过，不重复付费调用模型。
-- **默认桥接**：`subtitleScript` 的注册默认值把 `$1` 通过 stdin 送入
-  `clip-compile.mjs --stdin`。用户在设置里修改或清空脚本后，以持久化用户值为准；
-  `subtitleTriggerEnabled` 仍是总开关。
-- **后台纪律**：只用 `Process.run()` 启动 zsh，不等待模型完成、不抢焦点、
-  不合成鼠标事件。编译器成功拿到正文后才 `pbcopy` 回写并发通知。
-- **失败可观测**：脚本 stdout/stderr 仍丢弃，避免污染前台；非零退出由
+- **解决什么**：让 ClipBar 从“保存剪贴板”升级为可控的内容编译入口。顶栏右侧
+  直接显示 `Podcast Agent` 总开关；开启后显示当前编译形态菜单。
+- **编译形态**：v1 固定四种稳定 ID：`quick`（快速理解）、`spoken`（口播·平实）、
+  `humorous`（口播·轻幽默）、`judgments`（20 条判断）。选择会持久化，并通过 `$2`
+  传给 `pi-podcast-compiler`，不是只改变 UI 文案。
+- **路由**：`AgentTrigger` 接受两类输入：至少 2 行独占时间戳的字幕；或至少 500 个
+  非空白字符的长文本。短文本不自动调用模型，避免日常复制产生付费副作用。
+- **幂等**：仍挂在“新捕获”路径；与头条完全相同的紧邻重复沿用现有 dedup 跳过，
+  不会重复触发 Agent。
+- **默认桥接**：`subtitleScript` key 为兼容历史继续保留，但默认脚本现在是
+  `printf '%s' "$1" | .../clip-compile.mjs --stdin --preset "$2"`。旧默认 bridge 会在启动时
+  自动迁移；用户自定义脚本不覆盖。`subtitleTriggerEnabled` 同样作为兼容 key 保留，
+  语义已升级为 Agent 总开关。
+- **后台纪律**：只用 `Process.run()` 启动 zsh，不等待模型完成、不抢焦点、不合成鼠标事件。
+  编译器成功拿到正文后才 `pbcopy` 回写并发通知。
+- **输出回环防护**：编译器在 `pbcopy` 前以结果正文的 SHA-256 写入 one-shot 临时 marker；
+  `AgentTrigger` 捕获到同一哈希时消费 marker，只保存结果、不再次调用模型。marker 文件名只有哈希，
+  不保存正文；按哈希分文件，因此并发任务不会互相覆盖。
+- **失败可观测**：脚本 stdout/stderr 继续丢弃以免污染前台；非零退出由
   `terminationHandler` 写系统日志。失败不得覆盖 owner 当前剪贴板。
 
 ## 10. 通用设计原则（从以上机制提炼）

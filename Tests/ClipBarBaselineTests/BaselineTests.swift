@@ -194,6 +194,45 @@ import Carbon.HIToolbox
     }
 }
 
+// MARK: - Clipboard Agent
+
+@Suite @MainActor struct ClipboardAgentTests {
+
+    @Test func presetRawValuesAndLabelsStayStable() {
+        #expect(AgentCompilerPreset.allCases.map(\.rawValue) == ["quick", "spoken", "humorous", "judgments"])
+        #expect(AgentCompilerPreset.quick.titleZH == "快速理解")
+        #expect(AgentCompilerPreset.spoken.titleZH == "口播·平实")
+        #expect(AgentCompilerPreset.humorous.titleZH == "口播·轻幽默")
+        #expect(AgentCompilerPreset.judgments.titleZH == "20 条判断")
+    }
+
+    @Test func subtitleTimestampIsCompilable() {
+        let text = "开场说明\n0:07\n第一段字幕内容\n0:42\n第二段字幕内容"
+        #expect(AgentTrigger.looksLikeSubtitle(text))
+        #expect(AgentTrigger.looksLikeCompilable(text))
+    }
+
+    @Test func compilerOutputMarkerIsOneShot() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("clipbar-agent-marker-test-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let text = "这是 Agent 编译后的输出"
+        let marker = AgentTrigger.outputMarkerURL(for: text, tempDirectory: dir)
+        try "1000".write(to: marker, atomically: true, encoding: .utf8)
+
+        #expect(AgentTrigger.consumeOutputMarkerIfPresent(text, tempDirectory: dir, nowMilliseconds: 1500))
+        #expect(!AgentTrigger.consumeOutputMarkerIfPresent(text, tempDirectory: dir, nowMilliseconds: 1500))
+    }
+
+    @Test func longTextIsCompilableButShortTextIsNot() {
+        let longText = String(repeating: "这是一段需要被编译的文章内容。", count: 50)
+        #expect(AgentTrigger.looksLikeCompilable(longText))
+        #expect(!AgentTrigger.looksLikeCompilable("只是随手复制的一小段文字"))
+    }
+}
+
 // MARK: - 拼音索引
 
 @Suite struct PinyinIndexTests {

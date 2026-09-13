@@ -250,7 +250,7 @@ final class ClipboardStore {
         }
         LinkRuleEngine.evaluate(item, in: self)
         if item.type == .text || item.type == .richText {
-            SubtitleTrigger.evaluate(item, in: self)
+            AgentTrigger.evaluate(item, in: self)
         }
         scheduleSave()
     }

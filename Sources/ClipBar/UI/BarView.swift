@@ -49,7 +49,7 @@ struct BarView: View {
             if store.multiSelectedIDs.count > 1 {
                 bulkDeleteButton
             }
-            subtitleTriggerToggle
+            agentControls
             moreMenu
         }
         .padding(.horizontal, 18)
@@ -165,9 +165,18 @@ private func quickFilter(_ type: ClipType) -> some View {
         .fixedSize()
     }
 
-    /// 显性开关：字幕自动处理直接在面板顶栏切换——状态一眼可见，点一下即切换，
-    /// 不用进设置翻。开启时圆点高亮 + 胶囊底色。
-    private var subtitleTriggerToggle: some View {
+    /// Clipboard Agent 的主控面：总开关负责“是否允许自动调用模型”，
+    /// preset 只在开启时出现，避免 OFF 状态仍给人“正在处理”的错觉。
+    private var agentControls: some View {
+        HStack(spacing: 6) {
+            agentToggle
+            if settings.subtitleTriggerEnabled {
+                agentPresetMenu
+            }
+        }
+    }
+
+    private var agentToggle: some View {
         let on = settings.subtitleTriggerEnabled
         return Button {
             settings.subtitleTriggerEnabled.toggle()
@@ -176,7 +185,7 @@ private func quickFilter(_ type: ClipType) -> some View {
                 Circle()
                     .fill(on ? Theme.selection : Theme.chromeTextSecondary.opacity(0.55))
                     .frame(width: 7, height: 7)
-                Text(L10n.t("Subtitles", "字幕"))
+                Text("Podcast Agent")
                     .font(.system(size: 12, weight: on ? .semibold : .regular))
                     .foregroundStyle(on ? Theme.selection : Theme.chromeTextSecondary)
             }
@@ -185,8 +194,40 @@ private func quickFilter(_ type: ClipType) -> some View {
             .background(on ? Theme.selection.opacity(0.16) : Color.clear, in: Capsule())
         }
         .buttonStyle(.plain)
-        .help(L10n.t(on ? "Subtitle auto-processing is ON — click to turn off" : "Subtitle auto-processing is OFF — click to turn on",
-                     on ? "字幕自动处理已开启——点按关闭" : "字幕自动处理已关闭——点按开启"))
+        .help(L10n.t(on ? "Podcast Agent is ON — new subtitles and long text may compile automatically" : "Podcast Agent is OFF — no automatic model calls",
+                     on ? "Podcast Agent 已开启——新字幕和长文本可自动编译" : "Podcast Agent 已关闭——不会自动调用模型"))
+    }
+
+    private var agentPresetMenu: some View {
+        Menu {
+            ForEach(AgentCompilerPreset.allCases) { preset in
+                Button {
+                    settings.agentCompilerPreset = preset
+                } label: {
+                    if settings.agentCompilerPreset == preset {
+                        Label(L10n.t(preset.title, preset.titleZH), systemImage: "checkmark")
+                    } else {
+                        Text(L10n.t(preset.title, preset.titleZH))
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Text(L10n.t(settings.agentCompilerPreset.title, settings.agentCompilerPreset.titleZH))
+                    .font(.system(size: 11.5, weight: .medium))
+                    .lineLimit(1)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 8, weight: .semibold))
+            }
+            .foregroundStyle(Theme.chromeTextSecondary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(Theme.pillBG, in: Capsule())
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help(L10n.t("Choose how Podcast Agent compiles the next content", "选择 Podcast Agent 的编译形态"))
     }
 
     /// Identifies the padded scroll content, so a presentation reset can land
