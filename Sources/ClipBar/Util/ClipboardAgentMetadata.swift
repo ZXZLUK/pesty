@@ -54,22 +54,41 @@ struct ClipboardAgentMetadata: Codable, Equatable {
         return parseCompactFields(marker)
     }
 
-    /// Chromium exposes the originating page URL on programmatic clipboard writes.
-    /// The YouTube subtitle extension writes plain text only, so we require both Chromium
-    /// provenance types and reject rich-text/html payloads. The URL is used only for routing
-    /// and is never persisted.
-    static func metadataFromChromiumYouTubePlainText(typeNames: Set<String>, sourceURL: String?) -> ClipboardAgentMetadata? {
+    /// Chromium exposes provenance marker types on programmatic clipboard writes, but the
+    /// `org.chromium.source-url` value is not guaranteed to be readable cross-process on macOS.
+    /// When the URL is readable it must be YouTube. When it is unreadable, only the exact
+    /// programmatic plain-text shape from Arc/Chrome is accepted as the producer fallback.
+    static func metadataFromChromiumYouTubePlainText(typeNames: Set<String>,
+                                                     sourceURL: String?,
+                                                     sourceBundleID: String? = nil,
+                                                     sourceAppName: String? = nil) -> ClipboardAgentMetadata? {
         guard typeNames.contains(chromiumSourceURLType),
               typeNames.contains(chromiumSourceFrameTokenType),
               typeNames.contains("public.utf8-plain-text") || typeNames.contains("NSStringPboardType"),
               !typeNames.contains("public.html"),
-              !typeNames.contains("public.rtf"),
-              let sourceURL, sourceURL.count <= 4_096,
-              let url = URL(string: sourceURL),
-              let scheme = url.scheme?.lowercased(), ["http", "https"].contains(scheme),
-              let host = url.host?.lowercased(),
-              host == "youtube.com" || host.hasSuffix(".youtube.com") else { return nil }
+              !typeNames.contains("public.rtf") else { return nil }
+
+        let rawURL = sourceURL?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !rawURL.isEmpty {
+            guard rawURL.count <= 4_096,
+                  let url = URL(string: rawURL),
+                  let scheme = url.scheme?.lowercased(), ["http", "https"].contains(scheme),
+                  let host = url.host?.lowercased(),
+                  host == "youtube.com" || host.hasSuffix(".youtube.com") else { return nil }
+        } else {
+            guard isSupportedChromiumBrowser(bundleID: sourceBundleID, appName: sourceAppName) else { return nil }
+        }
         return ClipboardAgentMetadata(v: 1, source: "youtube", kind: "transcript", intent: "compile")
+    }
+
+    private static func isSupportedChromiumBrowser(bundleID: String?, appName: String?) -> Bool {
+        let id = bundleID?.lowercased() ?? ""
+        let name = appName?.lowercased() ?? ""
+        return id == "company.thebrowser.browser"
+            || id == "com.google.chrome"
+            || id.hasPrefix("com.google.chrome.")
+            || name == "arc"
+            || name.hasPrefix("google chrome")
     }
 
     private static func parseCompactFields(_ body: String) -> ClipboardAgentMetadata? {

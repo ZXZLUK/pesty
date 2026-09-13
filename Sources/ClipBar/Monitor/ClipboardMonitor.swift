@@ -87,7 +87,9 @@ final class ClipboardMonitor {
             let sourceType = NSPasteboard.PasteboardType(ClipboardAgentMetadata.chromiumSourceURLType)
             chromiumYouTubeMetadata = ClipboardAgentMetadata.metadataFromChromiumYouTubePlainText(
                 typeNames: typeNames,
-                sourceURL: pasteboard.string(forType: sourceType)
+                sourceURL: pasteboard.string(forType: sourceType),
+                sourceBundleID: bundleID,
+                sourceAppName: appName
             )
             if chromiumYouTubeMetadata != nil {
                 NSLog("ClipboardMonitor: routed Chromium YouTube plain-text write to Agent")

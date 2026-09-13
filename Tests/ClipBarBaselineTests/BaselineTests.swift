@@ -283,16 +283,34 @@ import Carbon.HIToolbox
             sourceURL: "https://www.youtube.com/watch?v=test"
         )?.source == "youtube")
         #expect(ClipboardAgentMetadata.metadataFromChromiumYouTubePlainText(
+            typeNames: programmaticTypes,
+            sourceURL: nil,
+            sourceBundleID: "company.thebrowser.Browser",
+            sourceAppName: "Arc"
+        )?.source == "youtube")
+        #expect(ClipboardAgentMetadata.metadataFromChromiumYouTubePlainText(
+            typeNames: programmaticTypes,
+            sourceURL: nil,
+            sourceBundleID: "com.apple.Safari",
+            sourceAppName: "Safari"
+        ) == nil)
+        #expect(ClipboardAgentMetadata.metadataFromChromiumYouTubePlainText(
             typeNames: programmaticTypes.union(["public.html"]),
-            sourceURL: "https://www.youtube.com/watch?v=test"
+            sourceURL: nil,
+            sourceBundleID: "company.thebrowser.Browser",
+            sourceAppName: "Arc"
         ) == nil)
         #expect(ClipboardAgentMetadata.metadataFromChromiumYouTubePlainText(
             typeNames: programmaticTypes,
-            sourceURL: "https://example.com/watch?v=test"
+            sourceURL: "https://example.com/watch?v=test",
+            sourceBundleID: "company.thebrowser.Browser",
+            sourceAppName: "Arc"
         ) == nil)
         #expect(ClipboardAgentMetadata.metadataFromChromiumYouTubePlainText(
             typeNames: programmaticTypes.subtracting(["org.chromium.internal.source-rfh-token"]),
-            sourceURL: "https://www.youtube.com/watch?v=test"
+            sourceURL: nil,
+            sourceBundleID: "company.thebrowser.Browser",
+            sourceAppName: "Arc"
         ) == nil)
     }
 }
