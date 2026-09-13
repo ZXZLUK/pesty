@@ -32,6 +32,10 @@ enum AgentTrigger {
         return item.agentMetadata?.requestsCompile == true
     }
 
+    static func shouldShowCompilationHUD(for item: ClipItem) -> Bool {
+        item.agentMetadata?.requestsCompile == true
+    }
+
     private static var inFlight: Set<String> = []
 
     /// Bounded local event evidence: never persist source text, source URLs, shell
@@ -97,13 +101,16 @@ enum AgentTrigger {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !code.isEmpty else { recordEvent("skipped_empty_bridge"); return }
         guard looksLikeCompilable(text, metadata: item.agentMetadata) else { return }
-        run(code, text: text, preset: Settings.shared.agentCompilerPreset)
+        run(code, text: text, preset: Settings.shared.agentCompilerPreset,
+            showHUD: shouldShowCompilationHUD(for: item))
     }
 
-    private static func run(_ code: String, text: String, preset: AgentCompilerPreset) {
+    private static func run(_ code: String, text: String, preset: AgentCompilerPreset, showHUD: Bool) {
         let key = outputMarkerURL(for: text).lastPathComponent + ":" + preset.rawValue
         guard inFlight.insert(key).inserted else { recordEvent("skipped_in_flight", preset: preset.rawValue); return }
         recordEvent("launch_requested", preset: preset.rawValue, chars: text.count)
+        let inputSHA256 = SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined()
+        let hudToken = showHUD ? AgentHUDStore.shared.launchRequested(inputSHA256: inputSHA256, preset: preset) : nil
         NSLog("AgentTrigger: firing compiler (text %d chars, preset=%@)", text.count, preset.rawValue)
         let task = Process()
         var env = ProcessInfo.processInfo.environment
@@ -127,6 +134,7 @@ enum AgentTrigger {
         } catch {
             inFlight.remove(key)
             recordEvent("launch_failed", preset: preset.rawValue)
+            if let hudToken { AgentHUDStore.shared.launchFailed(hudToken) }
             NSLog("AgentTrigger: compiler failed to launch: \(error)")
         }
     }

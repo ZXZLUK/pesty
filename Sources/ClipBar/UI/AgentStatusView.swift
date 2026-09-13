@@ -2,33 +2,12 @@ import SwiftUI
 import AppKit
 import CryptoKit
 
-/// Read-only status from the compiler's bounded, body-free delivery receipt.
-struct AgentClipboardReceipt: Decodable {
-    let phase: String
-    let delivery: String?
-    let result_file: String?
-    let output_sha256: String?
-
-    var label: String {
-        switch phase {
-        case "compiling": return "编译中…"
-        case "publishing": return "回写校验中…"
-        case "needs_review": return "需要审核"
-        case "failed": return "编译或回写失败"
-        case "completed": return delivery == "clipboard_verified" ? "已回写剪贴板" : "已保存，未覆盖新复制"
-        default: return "状态未知"
-        }
-    }
-}
-
 @MainActor
 struct AgentStatusView: View {
     @State private var receipt: AgentClipboardReceipt?
     @State private var copyError = false
     private let timer = Timer.publish(every: 2, on: .main, in: .common).autoconnect()
-    private static var root: URL {
-        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("projects/2026/pi-podcast-compiler")
-    }
+    private static var root: URL { AgentCompilerPaths.root }
     private var verifiedResultURL: URL? {
         guard let path = receipt?.result_file else { return nil }
         let url = URL(fileURLWithPath: path).resolvingSymlinksInPath()
@@ -60,7 +39,7 @@ struct AgentStatusView: View {
     }
 
     private func refresh() {
-        let path = Self.root.appendingPathComponent("var/clipboard-status.json")
+        let path = AgentCompilerPaths.latestStatus
         guard let size = (try? path.resourceValues(forKeys: [.fileSizeKey]))?.fileSize,
               size <= 32_768, let data = try? Data(contentsOf: path) else { return }
         receipt = try? JSONDecoder().decode(AgentClipboardReceipt.self, from: data)

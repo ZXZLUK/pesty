@@ -233,6 +233,14 @@ import Carbon.HIToolbox
         #expect(AgentTrigger.looksLikeCompilable("明确声明的字幕", metadata: route))
     }
 
+    @Test func hudRequiresExplicitSemanticCompileIntent() {
+        let route = ClipboardAgentMetadata(v: 1, source: "youtube", kind: "transcript", intent: "compile")
+        let routed = ClipItem(type: .text, text: "0:07\n字幕\n0:20\n继续", agentMetadata: route)
+        let timestampOnly = ClipItem(type: .text, text: "0:07\n字幕\n0:20\n继续")
+        #expect(AgentTrigger.shouldShowCompilationHUD(for: routed))
+        #expect(!AgentTrigger.shouldShowCompilationHUD(for: timestampOnly))
+    }
+
     @Test func explicitCompileIntentSurvivesContentDedup() {
         let route = ClipboardAgentMetadata(v: 1, source: "youtube", kind: "transcript", intent: "compile")
         let routed = ClipItem(type: .text, text: "与历史完全相同的正文", agentMetadata: route)

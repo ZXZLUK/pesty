@@ -33,6 +33,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let hotEdge = HotEdgeController()
 
     private var barController: BarWindowController?
+    private var agentHUDController: AgentHUDWindowController?
     private var statusItem: NSStatusItem?
     private var pauseMenuItem: NSMenuItem?
     private var settingsWindow: NSWindow?
@@ -66,6 +67,8 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
         NotificationCenter.default.addObserver(
             self, selector: #selector(screenParametersChanged),
             name: NSApplication.didChangeScreenParametersNotification, object: nil)
+
+        agentHUDController = AgentHUDWindowController()
 
         monitor.start()
         store.applyRetentionPolicy()
@@ -324,6 +327,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
         barController?.forceHide()
         stopKeyMonitor()
         hotEdge.rebuild()
+        agentHUDController?.reposition()
     }
 
     func setHotEdgeEnabled(_ enabled: Bool) {
